@@ -5,13 +5,13 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 
-async function until(check, description, timeout = 10000) {
+async function until(check, description, timeout = 10000, diagnostics = () => '') {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (check()) return;
     await new Promise(resolve => setTimeout(resolve, 25));
   }
-  throw new Error(`Timed out: ${description}`);
+  throw new Error(`Timed out: ${description}${diagnostics()}`);
 }
 
 async function run() {
@@ -46,9 +46,16 @@ async function run() {
     await fs.writeFile(source.fsPath, text);
     await until(() => frames.some(frame => frame.length > 0 && frame.length < text.length), 'partial typing frame');
     assert.equal(await fs.readFile(source.fsPath, 'utf8'), text, 'animation does not rewrite the real source');
-    await until(() => frames.includes(text) && previewTabs().length === 0 &&
+    // VS Code normalizes virtual models to the host's EOL; disk bytes remain exact.
+    await until(() => frames.some(frame => frame.replace(/\r\n/g, '\n') === text) && previewTabs().length === 0 &&
       vscode.window.visibleTextEditors.some(editor => editor.document.uri.toString() === source.toString()),
-    'complete replay, source reveal, and virtual tab cleanup');
+    'complete replay, source reveal, and virtual tab cleanup', 10000, () => JSON.stringify({
+      state: api.getState(), frameCount: frames.length,
+      finalFrameLength: frames.at(-1)?.length, expectedLength: text.length,
+      finalFrameUsesCRLF: frames.at(-1)?.includes('\r\n'),
+      visibleEditors: vscode.window.visibleTextEditors.map(editor => editor.document.uri.toString()),
+      source: source.toString(), replayTabs: previewTabs().length
+    }));
     console.log('PASS real watcher → virtual typing frames → real file; disk untouched');
 
     await vscode.commands.executeCommand('codexLiveFollow.pause');

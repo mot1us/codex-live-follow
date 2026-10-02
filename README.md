@@ -21,7 +21,7 @@ The sidebar lets you pause/resume, choose typing or direct follow, adjust typing
 
 ## Install
 
-Requires desktop VS Code 1.96 or newer. Use **Extensions → … → Install from VSIX…** and choose the `.vsix` file in `dist/`. Reload VS Code if prompted.
+Requires desktop VS Code 1.96 or newer. Build an installer with `npm ci` followed by `npm run package`. Use **Extensions → … → Install from VSIX…** and choose the generated `.vsix` file in `dist/`. Reload VS Code if prompted.
 
 ## Development
 

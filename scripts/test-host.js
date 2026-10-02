@@ -23,6 +23,8 @@ async function main() {
       'update.mode': 'none',
       'workbench.startupEditor': 'none',
       'files.autoSave': 'off',
+      // Exercise Windows-style virtual document line endings on every host.
+      'files.eol': '\r\n',
     }));
     await runTests({
       extensionDevelopmentPath: root,

@@ -1,11 +1,11 @@
 # Release preparation
 
-The source and installable VSIX can be shared before there is a Marketplace listing. The `local` publisher in `package.json` is a development identity, not a registered public publisher. No GitHub repository, Marketplace publisher, or publication credentials are assumed by this project.
+The source lives in [mot1us/codex-live-follow](https://github.com/mot1us/codex-live-follow). Installable VSIX packages are built locally and by GitHub Actions. The `local` publisher in `package.json` is a development identity, not a registered public publisher. Marketplace publication is not configured.
 
-## Before the first public release
+## Before the first Marketplace release
 
-- Choose the repository owner and public project name. Keep the description explicit that this is an independent companion and is not an OpenAI product.
-- Create the GitHub repository and add its real `repository`, `homepage`, and `bugs` URLs to `package.json`. Confirm that no personal workspace paths, credentials, recordings, or generated packages are being committed.
+- Keep the description explicit that this is an independent companion and is not an OpenAI product.
+- Verify the `repository`, `homepage`, and `bugs` URLs in `package.json`. Confirm that no personal workspace paths, credentials, recordings, or generated packages are being committed.
 - Confirm the license and copyright attribution match the intended ownership.
 - Enable private vulnerability reporting if the repository will accept reports through GitHub.
 - Record a short demo using a disposable project. Show both a typing replay and a manual pause; avoid private source, paths, and account details.
@@ -24,4 +24,4 @@ Use VS Code's [official publishing guide](https://code.visualstudio.com/api/work
 
 The standard Marketplace tooling is `@vscode/vsce`; it supports both packaging and publishing. Packaging a VSIX does not publish it. Keep publication a deliberate owner action until the repository identity and release process are established.
 
-The included CI gates packaging on unit checks and real VS Code host tests, then uploads a build artifact without publishing. Its macOS/Windows/Linux matrix is configured but has not run for this local distribution. Confirm the hosted results before a public release. Repository links in the README are currently plain filenames so the local package does not require a fabricated GitHub URL. Once `repository` is configured, turn useful file references into working links and verify the packaged README with `vsce`.
+The included CI gates packaging on unit checks and real VS Code host tests on macOS, Windows, and Linux, then uploads a build artifact without publishing. Check the [hosted results](https://github.com/mot1us/codex-live-follow/actions) before each release, and verify the packaged README with `vsce`.
