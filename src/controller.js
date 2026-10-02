@@ -182,7 +182,7 @@ class LiveFollow {
       }),
       workspace.onDidChangeTextDocument(event => {
         if (event.document.uri.scheme !== SCHEME && event.document.isDirty && event.contentChanges.length) {
-          this.userActivity();
+          this.userActivity('editing a document');
         }
       }),
       workspace.onDidCloseTextDocument(document => {
@@ -190,16 +190,18 @@ class LiveFollow {
       }),
       window.onDidChangeTextEditorSelection(event => {
         const kinds = this.api.TextEditorSelectionChangeKind;
-        if (event.kind === kinds.Keyboard || event.kind === kinds.Mouse) this.userActivity();
+        if (event.kind === kinds.Keyboard || event.kind === kinds.Mouse) this.userActivity('editor selection');
       }),
       window.onDidChangeActiveTextEditor(editor => {
-        if (editor?.document.uri.toString() === this.pendingShowUri) return;
+        const ownUri = this.pendingShowUri || this.currentJob?.presentedUri;
+        if (ownUri && (editor?.document.uri.toString() === ownUri || (!editor &&
+          (this.pendingShowUri || window.visibleTextEditors.some(item => item.document.uri.toString() === ownUri))))) return;
         if (this.closingReplayUri && !this.api.window.tabGroups.all.some(group =>
           group.tabs.some(tab => tab.input?.uri?.toString() === this.closingReplayUri))) {
           this.closingReplayUri = undefined;
           return;
         }
-        this.userActivity();
+        this.userActivity('editor navigation');
       }),
       window.onDidChangeWindowState(state => {
         this.windowFocused = state.focused;
@@ -222,8 +224,9 @@ class LiveFollow {
     if (this.enabled) void this.playQueue();
   }
 
-  userActivity() {
+  userActivity(reason = 'editor interaction') {
     if (this.disposed || !this.config('pauseOnInteraction', true)) return;
+    if (this.currentJob && !this.currentJob.cancelled) this.log(`Replay paused for ${reason}.`);
     this.quietUntil = Date.now() + this.numberConfig('idleDelayMs', 3000, 500, 60000);
     this.cancelCurrent();
     this.clearHighlight();
@@ -464,6 +467,7 @@ class LiveFollow {
   async present(document, job) {
     if (!this.valid(job) || this.isDirty(job.uri)) return undefined;
     this.pendingShowUri = document.uri.toString();
+    job.presentedUri = this.pendingShowUri;
     try {
       const editor = await this.api.window.showTextDocument(document, {
         preview: true, preserveFocus: true, viewColumn: this.api.ViewColumn.One

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+- Fixed replay cancelling itself when the sidebar has focus or VS Code delivers a delayed editor-change event.
+- Added a regression check and exercised real host playback with editing protection enabled and the controls focused.
+- Diagnostic output now records when editor interaction pauses a replay.
+
 ## 0.5.1
 
 - Register sidebar message listeners before loading its HTML, and expose read-only state for host checks.

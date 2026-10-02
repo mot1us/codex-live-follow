@@ -305,6 +305,23 @@ test('writes wait in the background and play when the window regains focus', asy
   assert.equal(controller.queue.length, 0);
 });
 
+test('own editor transitions do not interrupt replay while a sidebar has focus', async t => {
+  const { mock, controller } = fixture(t);
+  await controller.start();
+  mock.hooks.showTextDocument = () => mock.events.activeEditor.fire(undefined);
+  const uri = mock.uri('sidebar-focus.js');
+  const text = 'const smallIdea = "Make something good";\n'.repeat(12);
+  mock.write(uri, text, true);
+  await until(() => mock.frames.some(frame => frame.text.length > 0 && frame.text.length < text.length),
+    'sidebar focus interrupted opening the replay');
+  // The host can deliver its editor-change event after showTextDocument resolves.
+  mock.events.activeEditor.fire(mock.shown.at(-1).editor);
+  await until(() => !controller.playing, 'replay did not complete');
+  assert.ok(mock.frames.some(frame => frame.text === text), 'replay must finish typing');
+  assert.equal(mock.shown.at(-1).document.uri.toString(), uri.toString());
+  assert.equal(controller.quietUntil, 0);
+});
+
 test('user navigation cancels playback while retaining the selected file', async t => {
   const { mock, controller } = fixture(t);
   const destination = mock.uri('my-work.js');

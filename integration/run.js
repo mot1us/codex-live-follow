@@ -21,10 +21,12 @@ async function run() {
   const api = await extension.activate();
   const config = vscode.workspace.getConfiguration('codexLiveFollow');
   for (const [key, value] of Object.entries({
-    enabled: true, pauseOnInteraction: false, pauseWhenUnfocused: false,
+    enabled: true, pauseOnInteraction: true, pauseWhenUnfocused: false, idleDelayMs: 500,
     ignoreEditorSaves: true, typingCharsPerSecond: 400, maxReplayDurationMs: 1000,
     minimumDisplayMs: 100, mode: 'typing'
   })) await config.update(key, value, vscode.ConfigurationTarget.Workspace);
+  const startingDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(__dirname, '..', 'src', 'extension.js')));
+  await vscode.window.showTextDocument(startingDocument, { preview: false });
   await vscode.commands.executeCommand('codexLiveFollow.controls');
   await until(() => api.areControlsReady(), 'sidebar HTML and scripts connect to the extension');
   assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));

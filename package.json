@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
   "description": "Watch workspace edits unfold with typing replay, automatic file following, and controls that respect your editing.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "publisher": "local",
   "license": "MIT",
   "engines": {
