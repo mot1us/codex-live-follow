@@ -1,0 +1,96 @@
+name: Check and package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [24]
+        include:
+          - os: ubuntu-latest
+            node: 22
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run package:check
+
+  integration:
+    name: VS Code ${{ matrix.vscode }} (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        vscode: [stable]
+        include:
+          - os: ubuntu-latest
+            vscode: '1.96.0'
+    env:
+      VSCODE_VERSION: ${{ matrix.vscode }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: xvfb-run -a npm run test:integration
+        if: runner.os == 'Linux'
+      - run: npm run test:integration
+        if: runner.os != 'Linux'
+
+  package:
+    name: Installable VSIX
+    needs: [test, integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run package
+      - name: Verify installable archive and checksum
+        working-directory: dist
+        run: |
+          unzip -t ./*.vsix
+          sha256sum --check ./*.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: codex-live-follow-vsix
+          path: |
+            dist/*.vsix
+            dist/*.vsix.sha256
+          if-no-files-found: error
+          retention-days: 14

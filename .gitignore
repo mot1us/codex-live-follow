@@ -1,0 +1,11 @@
+node_modules/
+dist/
+*.vsix
+*.vsix.sha256
+.vscode-test/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example

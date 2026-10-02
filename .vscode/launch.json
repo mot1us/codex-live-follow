@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Codex Live Follow",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "preLaunchTask": "npm: check",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

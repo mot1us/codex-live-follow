@@ -1,0 +1,186 @@
+{
+  "name": "codex-live-follow",
+  "displayName": "Codex Live Follow",
+  "description": "Watch workspace edits unfold with typing replay, automatic file following, and controls that respect your editing.",
+  "version": "0.4.0",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "codex",
+    "live editing",
+    "typing",
+    "ai",
+    "file watcher"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./src/extension.js",
+  "extensionKind": [
+    "workspace"
+  ],
+  "scripts": {
+    "test": "node scripts/unit-tests.js",
+    "check": "node scripts/check.js",
+    "package": "node scripts/package.js",
+    "package:check": "node scripts/check-package.js",
+    "vscode:prepublish": "npm run check && npm test",
+    "test:integration": "node scripts/test-host.js"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexLiveFollow.toggle",
+        "title": "Toggle Live Follow",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.pause",
+        "title": "Pause Following",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.resume",
+        "title": "Resume Following",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.controls",
+        "title": "Open Controls",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.setSpeed",
+        "title": "Choose Typing Speed",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.setMode",
+        "title": "Choose Replay Mode",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.skipReplay",
+        "title": "Skip Current Replay",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.showOutput",
+        "title": "Show Diagnostic Output",
+        "category": "Codex Live Follow"
+      }
+    ],
+    "configuration": {
+      "title": "Codex Live Follow",
+      "properties": {
+        "codexLiveFollow.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Follow external workspace writes. Click the status bar or use Pause/Resume commands to change this setting."
+        },
+        "codexLiveFollow.mode": {
+          "type": "string",
+          "enum": [
+            "typing",
+            "follow"
+          ],
+          "default": "typing",
+          "description": "Replay new code as fast typing in a temporary read-only editor, or jump directly to changed lines."
+        },
+        "codexLiveFollow.typingCharsPerSecond": {
+          "type": "number",
+          "default": 120,
+          "minimum": 20,
+          "maximum": 400,
+          "description": "Approximate speed of the typing replay."
+        },
+        "codexLiveFollow.maxReplayCharacters": {
+          "type": "number",
+          "default": 20000,
+          "minimum": 100,
+          "maximum": 100000,
+          "description": "Largest change to replay. Larger changes open immediately; replay length is also capped by maxReplayDurationMs."
+        },
+        "codexLiveFollow.maxReplayDurationMs": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1000,
+          "maximum": 60000,
+          "description": "Maximum typing replay time per change. Long changes speed up to stay within this limit."
+        },
+        "codexLiveFollow.highlightDurationMs": {
+          "type": "number",
+          "default": 1400,
+          "minimum": 250,
+          "maximum": 10000,
+          "description": "How long each changed block remains highlighted."
+        },
+        "codexLiveFollow.minimumDisplayMs": {
+          "type": "number",
+          "default": 450,
+          "minimum": 100,
+          "maximum": 5000,
+          "description": "Minimum time to show a changed block before following the next one."
+        },
+        "codexLiveFollow.maxFileSizeKB": {
+          "type": "number",
+          "default": 512,
+          "minimum": 16,
+          "maximum": 4096,
+          "description": "Skip files larger than this limit."
+        },
+        "codexLiveFollow.pauseOnInteraction": {
+          "type": "boolean",
+          "default": true,
+          "description": "Temporarily pause when you type, click in an editor, or switch files."
+        },
+        "codexLiveFollow.idleDelayMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 500,
+          "maximum": 60000,
+          "description": "Resume following pending changes after this much editor inactivity."
+        },
+        "codexLiveFollow.pauseWhenUnfocused": {
+          "type": "boolean",
+          "default": true,
+          "description": "Wait while this VS Code window is in the background."
+        },
+        "codexLiveFollow.ignoreEditorSaves": {
+          "type": "boolean",
+          "default": true,
+          "description": "Do not replay files you save from this VS Code window. External file writes are still followed."
+        },
+        "codexLiveFollow.excludeDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "description": "Additional exact directory names to skip anywhere in the workspace. Standard dependency and build folders are already excluded."
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Requires a workspace extension host with file watching support."
+    }
+  },
+  "icon": "assets/icon.png"
+}
