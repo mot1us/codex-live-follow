@@ -86,16 +86,19 @@ test('live sidebar tracks typing, skip, queued writes, and background waiting', 
 test('hidden sidebar stops updates, catches up on reveal, and releases view listeners', async t => {
   const { mock, controller, sidebar, view, messages, visibility, disposed } = await setup(t);
   const prior = messages.length;
+  assert.equal(sidebar.ready, true);
   controller.updateStatus();
   assert.equal(messages.length, prior, 'unchanged state is not posted twice');
   view.visible = false;
   visibility.fire();
+  assert.equal(sidebar.ready, false);
   await mock.configure('enabled', false);
   assert.equal(messages.length, prior, 'hidden webview gets no updates');
   view.visible = true;
   visibility.fire();
   assert.equal(messages.at(-1).state.enabled, false);
   disposed.fire();
+  assert.equal(sidebar.ready, false);
   const after = messages.length;
   await mock.configure('enabled', true);
   assert.equal(messages.length, after);

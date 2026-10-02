@@ -18,7 +18,7 @@ async function run() {
   const manifest = require('../package.json');
   const extension = vscode.extensions.getExtension(`${manifest.publisher}.${manifest.name}`);
   assert.ok(extension, 'development extension is installed');
-  await extension.activate();
+  const api = await extension.activate();
   const config = vscode.workspace.getConfiguration('codexLiveFollow');
   for (const [key, value] of Object.entries({
     enabled: true, pauseOnInteraction: false, pauseWhenUnfocused: false,
@@ -26,6 +26,7 @@ async function run() {
     minimumDisplayMs: 100, mode: 'typing'
   })) await config.update(key, value, vscode.ConfigurationTarget.Workspace);
   await vscode.commands.executeCommand('codexLiveFollow.controls');
+  await until(() => api.areControlsReady(), 'sidebar HTML and scripts connect to the extension');
   assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));
   console.log('PASS dedicated Live Follow sidebar opens in the real host');
   const root = vscode.workspace.workspaceFolders[0].uri.fsPath;

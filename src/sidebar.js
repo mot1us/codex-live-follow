@@ -15,6 +15,7 @@ class FollowSidebar {
     this.disposables = [controller.onDidChangeState(() => this.publish())];
     this.viewDisposables = [];
     this.disposed = false;
+    this.ready = false;
   }
 
   resolveWebviewView(view) {
@@ -23,7 +24,6 @@ class FollowSidebar {
     this.view = view;
     const assets = this.api.Uri.joinPath(this.context.extensionUri, 'assets');
     view.webview.options = { enableScripts: true, localResourceRoots: [assets] };
-    view.webview.html = this.html(view.webview, assets);
     this.viewDisposables.push(
       view.webview.onDidReceiveMessage(message => {
         void this.handleMessage(message).catch(error => {
@@ -34,11 +34,13 @@ class FollowSidebar {
         });
       }),
       view.onDidChangeVisibility(() => {
+        if (!view.visible) this.ready = false;
         this.lastState = undefined;
         this.publish();
       }),
       view.onDidDispose(() => { if (this.view === view) this.clearView(); })
     );
+    view.webview.html = this.html(view.webview, assets);
   }
 
   async open() {
@@ -48,6 +50,7 @@ class FollowSidebar {
   async handleMessage(message) {
     if (this.disposed || !message || typeof message !== 'object') return;
     if (message.type === 'ready') {
+      this.ready = true;
       this.lastState = undefined;
       this.publish();
       return;
@@ -133,6 +136,7 @@ class FollowSidebar {
   }
 
   clearView() {
+    this.ready = false;
     this.view = undefined;
     this.lastState = undefined;
     for (const disposable of this.viewDisposables) disposable.dispose();

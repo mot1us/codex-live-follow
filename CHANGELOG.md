@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1
+
+- Register sidebar message listeners before loading its HTML, and expose read-only state for host checks.
+- Host tests now wait for the sidebar's script to connect before passing the UI check.
+
 ## 0.5.0
 
 - Added a dedicated Live Follow activity bar icon and sidebar with pause/resume, mode, typing speed, and editing preferences.

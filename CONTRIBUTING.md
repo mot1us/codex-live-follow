@@ -43,7 +43,7 @@ On Linux without a display, install Xvfb and run:
 xvfb-run -a npm run test:integration
 ```
 
-CI is configured for unit checks on macOS, Windows, and Linux with Node.js 24, plus Linux with Node.js 22. Host tests target stable VS Code on all three platforms and VS Code 1.96.0 on Linux. Packaging runs on Linux after both test groups pass. The local v0.5.0 host checks passed on macOS with both installed VS Code 1.140 and version 1.96.0; the hosted CI matrix has not run yet. Automated tests cover their defined scenarios; the manual checks below exercise the rest of the user experience.
+CI is configured for unit checks on macOS, Windows, and Linux with Node.js 24, plus Linux with Node.js 22. Host tests target stable VS Code on all three platforms and VS Code 1.96.0 on Linux. Packaging runs on Linux after both test groups pass. The local sidebar host checks passed on macOS with both installed VS Code 1.140 and version 1.96.0, including the webview script readiness check; the hosted CI matrix has not run yet. Automated tests cover their defined scenarios; the manual checks below exercise the rest of the user experience.
 
 ## Useful manual checks
 

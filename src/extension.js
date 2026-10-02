@@ -8,6 +8,10 @@ async function activate(context) {
   controller = new LiveFollow(vscode, context);
   context.subscriptions.push(controller);
   await controller.start();
+  return {
+    getState: () => controller?.getState(),
+    areControlsReady: () => Boolean(controller?.sidebar?.ready)
+  };
 }
 
 function deactivate() {
