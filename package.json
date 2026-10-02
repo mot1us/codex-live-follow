@@ -220,5 +220,13 @@
       "description": "Requires a workspace extension host with file watching support."
     }
   },
-  "icon": "assets/icon.png"
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mot1us/codex-live-follow.git"
+  },
+  "homepage": "https://github.com/mot1us/codex-live-follow#readme",
+  "bugs": {
+    "url": "https://github.com/mot1us/codex-live-follow/issues"
+  }
 }
