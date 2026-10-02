@@ -25,6 +25,9 @@ async function run() {
     ignoreEditorSaves: true, typingCharsPerSecond: 400, maxReplayDurationMs: 1000,
     minimumDisplayMs: 100, mode: 'typing'
   })) await config.update(key, value, vscode.ConfigurationTarget.Workspace);
+  await vscode.commands.executeCommand('codexLiveFollow.controls');
+  assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));
+  console.log('PASS dedicated Live Follow sidebar opens in the real host');
   const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
   const source = vscode.Uri.file(path.join(root, 'live-follow-host-test.js'));
   const frames = [];

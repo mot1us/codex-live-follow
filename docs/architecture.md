@@ -9,7 +9,7 @@ Workspace file write
   → show the real file
 ```
 
-`src/extension.js` activates and disposes the controller. `src/controller.js` owns VS Code registration, watchers, snapshot storage, the queue, commands, and editor display. `src/diff.js` finds changed line ranges. `src/replay.js` finds the unchanged prefix and suffix so the changed middle can be revealed as typing.
+`src/extension.js` activates and disposes the controller. `src/controller.js` owns VS Code registration, watchers, snapshot storage, the queue, commands, and editor display. `src/sidebar.js` provides a sidebar webview, and `assets/sidebar.js` and `assets/sidebar.css` implement the controls. The controller sends state changes to the visible sidebar; sidebar actions use existing commands and validated settings. `src/diff.js` finds changed line ranges. `src/replay.js` finds the unchanged prefix and suffix so the changed middle can be revealed as typing.
 
 Typing uses VS Code's [virtual document API](https://code.visualstudio.com/api/extension-guides/virtual-documents). The real file is already saved when playback starts. Its contents are never reverted or rewritten to create the effect. A preview can show a partial function that is not valid code yet; the actual file is complete. Deletion-only edits and oversized changes are shown directly.
 

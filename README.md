@@ -12,9 +12,9 @@ Requires desktop VS Code 1.96 or newer and an open workspace folder.
 2. Reload VS Code if prompted, then open the folder where your agent is working.
 3. Ask the agent to create or edit a text file. The editor follows when the change reaches disk.
 
-Click **Type edits** in the status bar, or run **Codex Live Follow: Toggle Live Follow** in the Command Palette, to pause or resume. Set `codexLiveFollow.mode` to `follow` to jump directly to changed lines without animation.
+Click the **Live Follow** terminal/play icon in the left activity bar to open the dedicated sidebar. You can also click **Type edits** in the bottom status bar. The sidebar shows live status, the current file, pending changes, and replay progress. Use its **Follow edits** switch to pause or resume.
 
-Run **Codex Live Follow: Open Controls** for pause/resume, speed and mode selection, skipping the current replay, and diagnostic output. These actions also have individual Command Palette commands. Speed and mode changes apply to subsequent jobs; use **Skip Current Replay** or **Pause Following** to interrupt the current replay.
+Choose typing replay or direct follow, drag the speed slider, skip the current replay, and adjust automatic pauses directly in the sidebar. **All settings** opens the complete VS Code Settings page. Run **Codex Live Follow: Open Controls** or **Open Live Follow Sidebar** to open the same panel from the Command Palette. These actions also have individual Command Palette commands. Speed and mode changes apply to subsequent jobs; use **Skip Current Replay** or **Pause Following** to interrupt the current replay.
 
 Following yields when you type, move the caret, click in an editor, or switch files, and resumes after three seconds of inactivity. It also waits while the VS Code window is unfocused. Manual pause stays paused until you resume. Dirty editors are skipped, and saves from this VS Code window are ignored by default.
 

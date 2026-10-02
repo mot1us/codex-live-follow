@@ -21,7 +21,7 @@ function checkDirectory(directory) {
   }
 }
 
-for (const directory of ['src', 'scripts', 'test', 'integration']) {
+for (const directory of ['src', 'assets', 'scripts', 'test', 'integration']) {
   checkDirectory(path.join(root, directory));
 }
 for (const file of ['package.json', '.vscode/launch.json', '.vscode/tasks.json']) {

@@ -24,6 +24,7 @@ class Uri {
     this.query = query;
   }
   static file(pathname) { return new Uri('file', pathname); }
+  static joinPath(base, ...parts) { return base.with({ path: path.posix.join(base.path, ...parts) }); }
   with(changes) {
     return new Uri(changes.scheme ?? this.scheme, changes.path ?? this.path,
       changes.query ?? this.query);
@@ -56,6 +57,7 @@ function createVscodeMock(options = {}) {
   const watchers = [];
   const commands = new Map();
   const providers = new Map();
+  const viewProviders = new Map();
   const shown = [];
   const frames = [];
   const closedTabs = [];
@@ -137,6 +139,10 @@ function createVscodeMock(options = {}) {
       createOutputChannel: () => ({ appendLine: line => output.push(line), show() {}, dispose() {} }),
       createStatusBarItem: () => ({ show() {}, hide() {}, dispose() {} }),
       createTextEditorDecorationType: () => ({ dispose() {} }),
+      registerWebviewViewProvider(id, provider) {
+        viewProviders.set(id, provider);
+        return { dispose: () => viewProviders.delete(id) };
+      },
       async showQuickPick() { return undefined; },
       async showTextDocument(document, showOptions) {
         if (hooks.showTextDocument) await hooks.showTextDocument(document, showOptions);
@@ -259,11 +265,12 @@ function createVscodeMock(options = {}) {
 
   const context = {
     subscriptions,
+    extensionUri: Uri.file('/extension'),
     workspaceState: { get: (_key, fallback) => fallback, async update() {} }
   };
   return {
     vscode, context, config, events, files, documents, watchers, commands,
-    shown, frames, closedTabs, output, hooks, put, documentFor,
+    shown, frames, closedTabs, output, hooks, put, documentFor, viewProviders,
     uri: name => Uri.file(`/workspace/${name}`),
     write(uri, content, created = false) {
       put(uri, content);

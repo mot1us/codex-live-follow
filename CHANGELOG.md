@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- Added a dedicated Live Follow activity bar icon and sidebar with pause/resume, mode, typing speed, and editing preferences.
+- Added live playback status, current file, pending changes, and typing progress, plus buttons for skipping, Settings, and diagnostics.
+- The status bar button and Open Controls command now open the sidebar. Settings remain synchronized with Command Palette commands and VS Code Settings.
+- Sidebar content follows the VS Code theme and releases its resources when closed.
+
 ## 0.4.0
 
 - Added controls for pause/resume, replay speed, mode, skipping the current replay, and diagnostic output.

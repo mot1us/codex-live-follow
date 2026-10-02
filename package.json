@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
   "description": "Watch workspace edits unfold with typing replay, automatic file following, and controls that respect your editing.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -74,6 +74,17 @@
         "command": "codexLiveFollow.showOutput",
         "title": "Show Diagnostic Output",
         "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.openSidebar",
+        "title": "Open Live Follow Sidebar",
+        "category": "Codex Live Follow"
+      },
+      {
+        "command": "codexLiveFollow.settings",
+        "title": "Extension Settings",
+        "category": "Codex Live Follow",
+        "icon": "$(settings-gear)"
       }
     ],
     "configuration": {
@@ -82,7 +93,7 @@
         "codexLiveFollow.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Follow external workspace writes. Click the status bar or use Pause/Resume commands to change this setting."
+          "description": "Follow external workspace writes. Open the Live Follow sidebar from the activity bar or status bar to pause or resume."
         },
         "codexLiveFollow.mode": {
           "type": "string",
@@ -167,6 +178,33 @@
           "description": "Additional exact directory names to skip anywhere in the workspace. Standard dependency and build folders are already excluded."
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codexLiveFollow",
+          "title": "Live Follow",
+          "icon": "assets/sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "codexLiveFollow": [
+        {
+          "type": "webview",
+          "id": "codexLiveFollow.sidebar",
+          "name": "Controls"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codexLiveFollow.settings",
+          "when": "view == codexLiveFollow.sidebar",
+          "group": "navigation"
+        }
+      ]
     }
   },
   "devDependencies": {

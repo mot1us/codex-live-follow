@@ -3,6 +3,7 @@
 const { createHash } = require('node:crypto');
 const { changedHunks } = require('./diff');
 const { makeReplayPlan } = require('./replay');
+const { FollowSidebar, VIEW_ID } = require('./sidebar');
 
 const SNAPSHOT_LIMIT = 1200;
 const SNAPSHOT_BYTES = 32 * 1024 * 1024;
@@ -42,15 +43,17 @@ class LiveFollow {
     this.output = vscode.window.createOutputChannel('Codex Live Follow');
     this.status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.status.name = 'Codex Live Follow';
-    this.status.command = 'codexLiveFollow.toggle';
+    this.status.command = 'codexLiveFollow.controls';
     this.replayEmitter = new vscode.EventEmitter();
+    this.stateEmitter = new vscode.EventEmitter();
+    this.onDidChangeState = this.stateEmitter.event;
     this.highlight = vscode.window.createTextEditorDecorationType({
       isWholeLine: true,
       backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
       overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'),
       overviewRulerLane: vscode.OverviewRulerLane.Full
     });
-    this.disposables.push(this.output, this.status, this.replayEmitter, this.highlight);
+    this.disposables.push(this.output, this.status, this.replayEmitter, this.stateEmitter, this.highlight);
     this.updateStatus();
     this.status.show();
   }
@@ -69,6 +72,40 @@ class LiveFollow {
     if (!this.disposed) this.output.appendLine(`[${new Date().toISOString()}] ${message}`);
   }
 
+  getState() {
+    let status = 'watching';
+    let title = 'Watching for edits';
+    let detail = 'Saved workspace changes will appear in the editor.';
+    if (!this.enabled) {
+      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on when you are ready.';
+    } else if (!this.api.workspace.workspaceFolders?.length) {
+      status = 'empty'; title = 'Open a workspace folder'; detail = 'Open the folder where your agent is editing files.';
+    } else if (this.initializing) {
+      status = 'preparing'; title = 'Preparing workspace'; detail = 'Reading existing files before following new edits.';
+    } else if (this.isWaiting()) {
+      status = 'waiting';
+      const background = !this.windowFocused && this.config('pauseWhenUnfocused', true);
+      title = background ? 'Waiting for this window' : 'Waiting while you work';
+      detail = background ? 'Following resumes when you return to VS Code.' :
+        `Following resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds of editor inactivity.`;
+    } else if (this.currentJob && !this.currentJob.cancelled) {
+      status = 'playing'; title = 'Following an edit'; detail = 'Showing the latest saved change.';
+    }
+    const job = this.currentJob && !this.currentJob.cancelled ? this.currentJob : undefined;
+    return {
+      enabled: this.enabled, status, title, detail,
+      configurationScope: this.api.workspace.workspaceFolders?.length ? 'workspace' : 'user',
+      file: job ? this.api.workspace.asRelativePath(job.uri, false) : '',
+      pending: this.queue.length, canSkip: status === 'playing',
+      progress: status === 'playing' && typeof job?.progress === 'number' ? job.progress : null,
+      mode: this.config('mode', 'typing'),
+      speed: this.numberConfig('typingCharsPerSecond', 120, 20, 400),
+      pauseOnInteraction: this.config('pauseOnInteraction', true),
+      pauseWhenUnfocused: this.config('pauseWhenUnfocused', true),
+      ignoreEditorSaves: this.config('ignoreEditorSaves', true)
+    };
+  }
+
   updateStatus(detail) {
     if (this.disposed) return;
     if (!this.enabled) this.status.text = '$(eye-closed) Follow paused';
@@ -78,8 +115,9 @@ class LiveFollow {
     else if (this.currentJob) this.status.text = '$(play) Following edits';
     else this.status.text = this.config('mode', 'typing') === 'typing'
       ? '$(keyboard) Type edits' : '$(eye) Follow edits';
-    this.status.tooltip = `Codex Live Follow: ${detail || (this.isWaiting() ? 'waiting for you to finish editing or return to this window' : this.enabled ? 'watching workspace writes' : 'paused')}\nClick to ${this.enabled ? 'pause' : 'resume'}. Use “Codex Live Follow: Open Controls” for mode, speed, and settings.`;
+    this.status.tooltip = `Codex Live Follow: ${detail || this.getState().detail}\nClick to open the Live Follow sidebar.`;
     this.status.accessibilityInformation = { label: this.status.tooltip };
+    this.stateEmitter.fire();
   }
 
   async setSetting(key, value) {
@@ -110,7 +148,11 @@ class LiveFollow {
     register('toggle', () => this.setSetting('enabled', !this.enabled));
     register('pause', () => this.setSetting('enabled', false));
     register('resume', () => { this.quietUntil = 0; return this.setSetting('enabled', true); });
-    register('controls', () => this.showControls());
+    this.sidebar = new FollowSidebar(this.api, this.context, this);
+    this.disposables.push(this.sidebar, window.registerWebviewViewProvider(VIEW_ID, this.sidebar));
+    register('controls', () => this.sidebar.open());
+    register('openSidebar', () => this.sidebar.open());
+    register('settings', () => commands.executeCommand('workbench.action.openSettings', 'codexLiveFollow'));
     register('setSpeed', () => this.chooseSpeed());
     register('setMode', () => this.chooseMode());
     register('showOutput', () => this.output.show(true));
@@ -136,6 +178,7 @@ class LiveFollow {
         while (this.savedByEditor.size > SNAPSHOT_LIMIT) {
           this.savedByEditor.delete(this.savedByEditor.keys().next().value);
         }
+        this.updateStatus();
       }),
       workspace.onDidChangeTextDocument(event => {
         if (event.document.uri.scheme !== SCHEME && event.document.isDirty && event.contentChanges.length) {
@@ -316,6 +359,7 @@ class LiveFollow {
     this.savedByEditor.delete(key);
     this.queue = this.queue.filter(job => job.uri.toString() !== key);
     if (this.currentJob?.uri.toString() === key) this.cancelCurrent();
+    this.updateStatus();
   }
 
   scheduleRead(uri) {
@@ -357,6 +401,7 @@ class LiveFollow {
       this.queue.push(job);
       let bytes = this.queue.reduce((sum, pending) => sum + pending.bytes, 0);
       while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) bytes -= this.queue.shift().bytes;
+      this.updateStatus();
       void this.playQueue();
     } finally {
       reads.delete(revision);
@@ -481,6 +526,8 @@ class LiveFollow {
       const document = await this.api.workspace.openTextDocument(uri);
       const editor = await this.present(document, job);
       if (!editor) return;
+      job.progress = 0;
+      this.updateStatus();
       const rate = Math.max(this.numberConfig('typingCharsPerSecond', 120, 20, 400),
         plan.typed.length * 1000 / this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000));
       const started = Date.now() - FRAME_MS;
@@ -497,6 +544,8 @@ class LiveFollow {
         else column += chunk.length;
         written += chunk;
         index = next;
+        job.progress = Math.floor(index * 100 / plan.typed.length);
+        this.stateEmitter.fire();
         job.displayedText = written + plan.tail;
         this.replayContents.set(key, job.displayedText);
         this.replayEmitter.fire(uri);
@@ -509,6 +558,8 @@ class LiveFollow {
         if (index < plan.typed.length) await this.delay(FRAME_MS, job);
       }
       if (this.valid(job)) {
+        job.progress = 100;
+        this.updateStatus();
         this.replayContents.set(key, job.after);
         this.replayEmitter.fire(uri);
         await this.delay(150, job);
@@ -538,21 +589,6 @@ class LiveFollow {
       { label: 'Very fast', description: '400 characters per second', value: 400 }
     ], { title: 'Codex Live Follow: Typing Speed', placeHolder: 'Long changes still finish within the duration limit' });
     if (selected) await this.setSetting('typingCharsPerSecond', selected.value);
-  }
-
-  async showControls() {
-    const selected = await this.api.window.showQuickPick([
-      { label: this.enabled ? '$(debug-pause) Pause following' : '$(play) Resume following', command: 'toggle' },
-      { label: '$(debug-step-over) Skip current replay', command: 'skipReplay' },
-      { label: '$(keyboard) Change replay mode', command: 'setMode' },
-      { label: '$(dashboard) Change typing speed', command: 'setSpeed' },
-      { label: '$(settings-gear) Extension settings', command: 'settings' },
-      { label: '$(output) Show diagnostic output', command: 'showOutput' }
-    ], { title: 'Codex Live Follow', placeHolder: 'Control how you follow workspace edits' });
-    if (!selected) return;
-    if (selected.command === 'settings') {
-      await this.api.commands.executeCommand('workbench.action.openSettings', 'codexLiveFollow');
-    } else await this.api.commands.executeCommand(`codexLiveFollow.${selected.command}`);
   }
 
   dispose() {

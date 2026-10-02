@@ -23,7 +23,7 @@ async function checkPackage() {
 
   const files = (await listFiles({ cwd: root, packageManager: PackageManager.None }))
     .map(file => file.replace(/\\/g, '/')).sort();
-  const allowed = /^(?:package\.json|README\.md|CHANGELOG\.md|LICENSE\.txt|PRIVACY\.md|SUPPORT\.md|SECURITY\.md|src\/(?:[\w-]+\/)*[\w.-]+\.js|assets\/(?:[\w-]+\/)*[\w.-]+\.(?:png|svg|gif|jpg|jpeg))$/;
+  const allowed = /^(?:package\.json|README\.md|CHANGELOG\.md|LICENSE\.txt|PRIVACY\.md|SUPPORT\.md|SECURITY\.md|src\/(?:[\w-]+\/)*[\w.-]+\.js|assets\/(?:[\w-]+\/)*[\w.-]+\.(?:png|svg|gif|jpg|jpeg|css|js))$/;
   const unexpected = files.filter(file => !allowed.test(file));
   assert.deepEqual(unexpected, [], `Unexpected files in package: ${unexpected.join(', ')}`);
 
@@ -32,6 +32,7 @@ async function checkPackage() {
     .map(file => `src/${file.replace(/\\/g, '/')}`);
   const required = ['package.json', 'README.md', 'LICENSE.txt',
     manifest.main.replace(/^\.\//, ''), ...runtimeFiles];
+  required.push('assets/sidebar.js', 'assets/sidebar.css', 'assets/sidebar.svg');
   if (manifest.icon) required.push(manifest.icon.replace(/^\.\//, ''));
   for (const file of required) {
     assert.ok(files.includes(file), `Required extension file is missing: ${file}`);
