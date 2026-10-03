@@ -4,7 +4,8 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { runTests, resolveCliArgsFromVSCodeExecutablePath, downloadAndUnzipVSCode } = require('@vscode/test-electron');
+const { runTests, resolveCliArgsFromVSCodeExecutablePath } = require('@vscode/test-electron');
+const { downloadHost } = require('./download-host');
 
 async function main() {
   const root = path.resolve(__dirname, '..');
@@ -28,9 +29,9 @@ async function main() {
       'files.eol': '\r\n',
     }));
     let developmentPath = root;
-    let executable = process.env.VSCODE_EXECUTABLE_PATH || undefined;
+    const executable = process.env.VSCODE_EXECUTABLE_PATH ||
+      await downloadHost(process.env.VSCODE_VERSION || 'stable');
     if (process.env.LIVE_FOLLOW_VSIX) {
-      executable ||= await downloadAndUnzipVSCode({ version: process.env.VSCODE_VERSION || 'stable' });
       const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(executable, { reuseMachineInstall: true });
       // Run the Windows CLI through Electron directly, avoiding .cmd shell quoting.
       const installExecutable = process.platform === 'win32' ? executable : cli;
