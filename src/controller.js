@@ -89,7 +89,7 @@ class LiveFollow {
       await this.context.workspaceState.update('followDecision', false);
       const generation = this.generation;
       const choice = await this.api.window.showInformationMessage(
-        'Enable Live Follow in this project? It can switch files and show saved edits while Codex works.',
+        'Watch saved edits in this project? Live Follow will open files as your agent works.',
         'Enable for this project', 'Keep paused');
       if (this.disposed || generation !== this.generation) return;
       if (choice === 'Enable for this project') await this.setSetting('enabled', true);
@@ -114,21 +114,21 @@ class LiveFollow {
   getState() {
     let status = 'watching';
     let title = 'Watching for edits';
-    let detail = 'Saved workspace changes will appear in the editor.';
+    let detail = 'Waiting for the next saved edit.';
     if (!this.api.workspace.workspaceFolders?.length) {
-      status = 'empty'; title = 'Open a workspace folder'; detail = 'Open the folder where your agent is editing files.';
+      status = 'empty'; title = 'Open a project folder'; detail = 'Open the project your agent is working on.';
     } else if (!this.enabled) {
-      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on when you are ready.';
+      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on to watch.';
     } else if (this.initializing) {
-      status = 'preparing'; title = 'Preparing workspace'; detail = 'Reading existing files before following new edits.';
+      status = 'preparing'; title = 'Getting ready'; detail = 'Checking the files already here.';
     } else if (this.isWaiting()) {
       status = 'waiting';
       const background = !this.windowFocused && this.config('pauseWhenUnfocused', true);
       title = background ? 'Waiting for this window' : 'Waiting while you work';
-      detail = background ? 'Following resumes when you return to VS Code.' :
-        `Following resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds of editor inactivity.`;
+      detail = background ? 'Resumes when you come back to VS Code.' :
+        `Resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds idle.`;
     } else if (this.currentJob && !this.currentJob.cancelled) {
-      status = 'playing'; title = 'Following an edit'; detail = 'Showing the latest saved change.';
+      status = 'playing'; title = 'Following an edit'; detail = 'Showing the latest save.';
       if (this.currentJob.kind === 'inspection') {
         status = 'inspecting';
         title = this.currentJob.phase === 'suspect' ? 'Checking a possible cause' : 'Inspecting code';

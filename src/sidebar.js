@@ -29,7 +29,7 @@ class FollowSidebar {
         void this.handleMessage(message).catch(error => {
           this.controller.log(`Sidebar action failed: ${String(error)}`);
           if (this.view === view) void view.webview.postMessage({
-            type: 'error', message: 'Could not update the controls. Open diagnostic output for details.'
+            type: 'error', message: 'Could not update the controls. Check the logs.'
           });
         });
       }),
@@ -102,33 +102,33 @@ class FollowSidebar {
   <main>
     <header class="intro">
       <span class="eyebrow">CODEX LIVE FOLLOW</span>
-      <h1>Watch code take shape.</h1>
-      <p>Follow saved edits as they happen in your workspace.</p>
+      <h1>Watch your agent work.</h1>
+      <p>See saved edits while your agent works through the project.</p>
     </header>
 
     <section class="status-card" aria-labelledby="status-title" data-status="preparing">
       <div class="status-heading"><span class="status-dot" aria-hidden="true"></span><h2 id="status-title" role="status">Connecting…</h2></div>
-      <p id="status-detail">Getting the latest playback status.</p>
+      <p id="status-detail">Getting ready.</p>
       <p id="current-file" class="file" hidden></p>
       <progress id="progress" max="100" value="0" aria-label="Typing replay progress" hidden></progress>
-      <div class="queue-row"><span id="queue">No pending changes</span><button id="skip" class="text-button" disabled>Skip current</button></div>
+      <div class="queue-row"><span id="queue">Nothing queued</span><button id="skip" class="text-button" disabled>Skip current</button></div>
     </section>
 
     <section class="controls" aria-label="Playback controls">
-      <div class="toggle-row"><div><label for="enabled" class="control-label">Follow edits</label><p>Pause or resume following.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
+      <div class="toggle-row"><div><label for="enabled" class="control-label">Follow edits</label><p>Turn it off to pause.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
       <div class="field"><label class="control-label" for="mode">Replay mode</label><select id="mode" disabled><option value="typing">Typing replay</option><option value="follow">Follow changed lines</option></select></div>
-      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Relaxed</span><span>Fast</span></div><p class="hint">Mode and speed apply to the next replay.</p></div>
+      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Chill</span><span>Fast</span></div><p class="hint">Mode and speed kick in on the next replay.</p></div>
     </section>
 
     <section class="preferences" aria-labelledby="preferences-title">
       <h2 id="preferences-title">While you work</h2>
       <label class="check-row"><input id="pauseOnInteraction" type="checkbox" disabled><span>Pause while I edit</span></label>
-      <label class="check-row"><input id="pauseWhenUnfocused" type="checkbox" disabled><span>Wait when VS Code is in the background</span></label>
-      <label class="check-row"><input id="ignoreEditorSaves" type="checkbox" disabled><span>Ignore files I save in this window</span></label>
+      <label class="check-row"><input id="pauseWhenUnfocused" type="checkbox" disabled><span>Wait while VS Code is in the background</span></label>
+      <label class="check-row"><input id="ignoreEditorSaves" type="checkbox" disabled><span>Skip my saves in this window</span></label>
     </section>
 
     <p id="error" role="alert" hidden></p>
-    <footer><button id="settings" class="secondary-button">All settings</button><button id="output" class="text-button">Diagnostic output</button><p id="settings-scope">Changes made here are saved for this workspace.</p></footer>
+    <footer><button id="settings" class="secondary-button">All settings</button><button id="output" class="text-button">Logs</button><p id="settings-scope">Saved for this project.</p></footer>
   </main>
   <script nonce="${nonce}" src="${script}"></script>
 </body>

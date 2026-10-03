@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 — Keep it simple
+
+- New headline: Watch your agent work.
+- Shorter README, beta notes, sidebar labels, and settings descriptions.
+
 ## 0.7.1 — Beta inspection reliability
 
 - Read the first inspection report when a native watcher combines its file and directory creation into one notification.

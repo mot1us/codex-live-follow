@@ -1,28 +1,27 @@
 # Optional inspection setup
 
-Saved edit replay works immediately after you enable Live Follow for a project.
-These steps add file and line visits during an agent's bug investigation.
+Saved edits show up once you enable Live Follow. This setup lets your agent
+show the file and line it's checking during a bug hunt.
 
 ## Set up a project
 
-1. Download `inspect-line.js` from the same GitHub Release as your VSIX. It is a
-   standalone helper and needs Node.js 18 or newer. No npm installation is needed.
+1. Download `inspect-line.js` from the same GitHub Release as your VSIX.
+   It needs Node.js 18 or newer. No npm install.
 2. Copy it into your project's `scripts/` directory.
 3. Add `.codex-live-follow/` to that project's `.gitignore`.
-4. Add the instruction below to the project's existing `AGENTS.md`. Preserve its
-   other instructions. Create `AGENTS.md` if the project has none.
+4. Add the note below to your project's `AGENTS.md`. Keep its other instructions.
+   Create the file if you don't have one.
 
 ```markdown
 ## Live Follow inspection reports
 
-During bug investigation, report meaningful source locations so I can watch the
-investigation in VS Code. From this project root, run:
+When checking a bug, show the lines you actually inspect. From the project root:
 
 node scripts/inspect-line.js <relative-file> <one-based-line> "What you are checking"
 
-Report only locations you actually inspect. Use a short explanation. Add `suspect`
-as the final argument when evidence points to a possible cause. Continue fixing
-and verifying the issue normally. Reports are local and do not edit source code.
+Keep the explanation short. Add `suspect` at the end when the code looks like a
+possible cause. Keep fixing and checking the issue. Reports stay local and don't
+edit source files.
 ```
 
 ## Try it
@@ -35,9 +34,8 @@ node scripts/inspect-line.js src/app.js 12 "Checking how this value is calculate
 ```
 
 Live Follow opens the real file, highlights the line, and shows **Inspecting code**.
-Ask Codex to investigate an issue afterward. It can use the same instruction without
-you sending each location manually. Agents that do not follow the instruction will
-still have their saved edits replayed.
+Then ask Codex to check a bug. It can report the locations as it works.
+Saved edits still show up if the agent skips these reports.
 
 ## Without the helper
 
@@ -49,9 +47,8 @@ characters. `endLine` is optional. `phase` is `inspect` or `suspect`.
 {"id":"new-report-123","path":"src/app.js","line":12,"message":"Checking the calculation","phase":"inspect"}
 ```
 
-The extension follows new writes to this file. It does not replay old reports on
-startup or infer which files an agent reads. Pause controls and unsaved-file
-protection also apply to inspection visits.
+Live Follow shows new reports. It skips old reports at startup. Visits use the
+locations the agent reports. Pause and unsaved edit protection still apply.
 
-Remove the helper, these agent instructions, and `.codex-live-follow/` to remove
-the optional setup. The ordinary edit watcher remains available.
+To remove this setup, delete the helper, the added agent note, and
+`.codex-live-follow/`. Saved edit replay keeps working.

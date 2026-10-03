@@ -1,8 +1,8 @@
 {
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
-  "description": "An independent companion for watching saved Codex edits with typing replay, file following, and local inspection reports.",
-  "version": "0.7.1",
+  "description": "Watch your agent work in VS Code. Replay saved edits as fast typing or jump straight to changed lines.",
+  "version": "0.7.2",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {
@@ -73,7 +73,7 @@
       },
       {
         "command": "codexLiveFollow.showOutput",
-        "title": "Show Diagnostic Output",
+        "title": "Show Logs",
         "category": "Codex Live Follow"
       },
       {
@@ -94,7 +94,7 @@
         "codexLiveFollow.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Follow external workspace writes after enabling Live Follow for this project. Open the sidebar from the activity bar or status bar to pause or resume."
+          "description": "Follow saved edits in this project. Use Live Follow in the activity bar to pause or resume."
         },
         "codexLiveFollow.mode": {
           "type": "string",
@@ -103,78 +103,78 @@
             "follow"
           ],
           "default": "typing",
-          "description": "Replay new code as fast typing in a temporary read-only editor, or jump directly to changed lines."
+          "description": "Show saved edits as typing, or jump straight to changed lines. Typing uses a read-only preview."
         },
         "codexLiveFollow.typingCharsPerSecond": {
           "type": "number",
           "default": 120,
           "minimum": 20,
           "maximum": 400,
-          "description": "Approximate speed of the typing replay."
+          "description": "Typing replay speed in characters per second."
         },
         "codexLiveFollow.maxReplayCharacters": {
           "type": "number",
           "default": 20000,
           "minimum": 100,
           "maximum": 100000,
-          "description": "Largest change to replay. Larger changes open immediately; replay length is also capped by maxReplayDurationMs."
+          "description": "Skip typing for changes above this size. Smaller changes still follow the replay time limit."
         },
         "codexLiveFollow.maxReplayDurationMs": {
           "type": "number",
           "default": 12000,
           "minimum": 1000,
           "maximum": 60000,
-          "description": "Maximum typing replay time per change. Long changes speed up to stay within this limit."
+          "description": "Time limit for each typing replay, in milliseconds. Long edits speed up to fit."
         },
         "codexLiveFollow.highlightDurationMs": {
           "type": "number",
           "default": 1400,
           "minimum": 250,
           "maximum": 10000,
-          "description": "How long each changed block remains highlighted."
+          "description": "How long changed lines stay highlighted, in milliseconds."
         },
         "codexLiveFollow.minimumDisplayMs": {
           "type": "number",
           "default": 450,
           "minimum": 100,
           "maximum": 5000,
-          "description": "Minimum time to show a changed block before following the next one."
+          "description": "How long to show each changed block before moving on, in milliseconds."
         },
         "codexLiveFollow.inspectionDisplayMs": {
           "type": "number",
           "default": 1500,
           "minimum": 300,
           "maximum": 10000,
-          "description": "How long to show each file and line reported by an agent during a code inspection."
+          "description": "How long to show each file and line your agent reports, in milliseconds."
         },
         "codexLiveFollow.maxFileSizeKB": {
           "type": "number",
           "default": 512,
           "minimum": 16,
           "maximum": 4096,
-          "description": "Skip files larger than this limit."
+          "description": "Skip files larger than this size, in KB."
         },
         "codexLiveFollow.pauseOnInteraction": {
           "type": "boolean",
           "default": true,
-          "description": "Temporarily pause when you type, click in an editor, or switch files."
+          "description": "Pause when you type, click in an editor, or switch files."
         },
         "codexLiveFollow.idleDelayMs": {
           "type": "number",
           "default": 3000,
           "minimum": 500,
           "maximum": 60000,
-          "description": "Resume following pending changes after this much editor inactivity."
+          "description": "Wait this many milliseconds after you stop editing before following again."
         },
         "codexLiveFollow.pauseWhenUnfocused": {
           "type": "boolean",
           "default": true,
-          "description": "Wait while this VS Code window is in the background."
+          "description": "Wait while VS Code is in the background."
         },
         "codexLiveFollow.ignoreEditorSaves": {
           "type": "boolean",
           "default": true,
-          "description": "Do not replay files you save from this VS Code window. External file writes are still followed."
+          "description": "Skip saves made in this VS Code window. Follow edits saved by other tools."
         },
         "codexLiveFollow.excludeDirectories": {
           "type": "array",
@@ -183,7 +183,7 @@
             "minLength": 1
           },
           "default": [],
-          "description": "Additional exact directory names to skip anywhere in the workspace. Standard dependency and build folders are already excluded."
+          "description": "Extra folder names to skip. Dependency and build folders are already skipped."
         }
       }
     },

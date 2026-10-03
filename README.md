@@ -1,79 +1,59 @@
 # Codex Live Follow
 
-**Free, open-source, independent companion for Codex in desktop VS Code.**
-Not affiliated with or endorsed by OpenAI.
+**Watch your agent work.**
 
-Watch saved code edits unfold as fast typing, or jump straight to changed lines.
-The viewer runs locally without AI calls, network requests, telemetry, or an API key.
-Codex, VS Code, and other extensions have their own requirements and data handling.
+Files open. Saved edits play back as fast typing. Changed lines light up.
+You can follow along while your agent works through the project.
 
-## Install the beta
+Pick **Typing replay** or **Follow changed lines**. Pause whenever you want.
 
-1. Open [GitHub Releases](https://github.com/mot1us/codex-live-follow/releases) and
-   download the latest beta's `codex-live-follow-<version>.vsix` asset.
-2. In VS Code, open **Extensions → … → Install from VSIX…** and select that file.
-3. Reload VS Code if prompted, then open the local folder where Codex is working.
-4. Choose **Enable for this project** when invited. Dismissing the invitation keeps
-   following paused. Open the **Live Follow** activity bar icon to enable it later.
+## Get it
 
-Ordinary installation needs no npm, build tools, or API key. Desktop VS Code 1.96
-or newer is required. The first supported scope is **local folders on macOS,
-Windows, and Linux**. Remote workspaces and alternative editors are outside this
-beta's support claim. Marketplace publication is pending.
+1. Download the `.vsix` from [GitHub Releases](https://github.com/mot1us/codex-live-follow/releases).
+2. In VS Code: **Extensions → … → Install from VSIX…**
+3. Open your project and choose **Enable for this project**.
 
-### Upgrading the local prototype
+Use the **Live Follow** icon in the activity bar for controls. Each project
+remembers whether following is on or paused.
 
-This beta's extension ID is `mot1us.codex-live-follow`. Remove or disable the older
-`local.codex-live-follow` extension before installing it so only one watcher runs.
-Existing `codexLiveFollow` VS Code settings are still used. Explicit project enable
-or pause settings are preserved; new projects ask once before following.
+Needs desktop VS Code 1.96 or newer. This beta supports local folders on
+macOS, Windows, and Linux. No build tools or API key needed to install it.
 
-The `mot1us` identity matches the repository owner's GitHub name. Microsoft
-Marketplace publisher registration is pending. If a different publisher ID is
-needed later, migration will require installing that new identity.
+## How it works
 
-### Beta updates
+Live Follow watches saved files in your project. It shows each edit in a
+read-only preview, then opens the real file. By default, it pauses while you edit.
 
-Download and install newer VSIX files manually. The publisher/name pair must stay
-consistent for an in-place upgrade. VSIX installations have automatic updates off
-by default; enable Auto Update after moving to the eventual Marketplace listing.
+The typing is a replay after a save. It doesn't write to your source files or
+replace unsaved edits. Other tools that save files can trigger it too.
 
-## What you will see
+The extension runs locally. No AI calls, network requests, or telemetry.
+Codex and VS Code handle their own connections.
 
-- A saved external edit opens in a temporary read-only editor and replays as typing.
-- The latest real file opens afterward with changed lines highlighted.
-- **Follow changed lines** mode skips the animation and jumps to the changed block.
-- The sidebar shows the current file, progress, pending changes, and pause controls.
-- Typing or navigating in the editor can pause following. Unsaved source is protected.
-- Optional inspection reports reveal the file and line an agent is checking.
+## Watch a bug hunt
 
-The typing effect is a replay of a completed saved change. It preserves real source
-files. The watcher follows external writes and cannot identify whether Codex, a
-formatter, a generator, or another tool made a particular edit.
+Want to follow the lines your agent checks? Add the optional
+[inspection setup](docs/inspection-setup.md). Visits use locations reported by
+the agent. The helper needs Node.js 18 or newer.
 
-## Optional: watch a bug investigation
+## Beta notes
 
-Edit replay needs no project setup. Inspection visits need instructions asking the
-agent to report meaningful file and line locations. Download the standalone helper
-and follow [inspection setup](docs/inspection-setup.md). The helper needs Node.js
-18 or newer; no npm installation is needed.
+Install updates the same way: download the new VSIX and install it.
+If you have the old `local.codex-live-follow` build, remove or disable it first.
+Your `codexLiveFollow` settings still work.
 
-Live Follow displays **Inspecting code**, the location, and a short explanation.
-It displays the agent's explicit reports; it does not infer file reads or find bugs.
-Pause controls and unsaved-file protection also apply to inspections.
+Marketplace publishing comes later. The beta ID is `mot1us.codex-live-follow`;
+[release notes](docs/release-notes.md) cover the pending publisher registration.
 
-## Feedback
+[Try the beta checklist](docs/beta-testing.md) or
+[report a bug](https://github.com/mot1us/codex-live-follow/issues).
+Use a throwaway project when sharing logs or recordings.
 
-Try the [beta testing guide](docs/beta-testing.md) and report problems through
-[GitHub Issues](https://github.com/mot1us/codex-live-follow/issues). Use disposable
-examples when sharing logs or recordings. Independent tester feedback is required
-before the Marketplace release.
+## Work on it
 
-## Development
+Node.js 22 or newer. Run `npm ci`, `npm test`, and `npm run package`.
+The extension itself has no third-party dependencies.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
 
-The runtime has no third-party dependencies. For source development, install Node.js
-22 or newer and run `npm ci`, `npm test`, and `npm run package`.
-`npm run test:packaged` installs and exercises the generated VSIX in a fresh profile.
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [release preparation](docs/releasing.md).
-
-MIT licensed. [Security and privacy](SECURITY.md).
+Free. Open source. MIT licensed. Unofficial; not affiliated with OpenAI.
+[Security and privacy](SECURITY.md).

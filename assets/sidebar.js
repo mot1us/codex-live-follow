@@ -35,7 +35,7 @@
   function render(state) {
     latestState = state;
     element('settings-scope').textContent = state.configurationScope === 'workspace'
-      ? 'Changes made here are saved for this workspace.' : 'Changes made here are saved in your VS Code user settings.';
+      ? 'Saved for this project.' : 'Saved in your VS Code settings.';
     document.querySelector('.status-card').dataset.status = state.status;
     element('status-title').textContent = state.title;
     element('status-title').title = state.title;
@@ -46,7 +46,7 @@
     element('current-file').textContent = location;
     element('current-file').title = location;
     element('queue').textContent = state.pending
-      ? `${state.pending} pending ${state.pending === 1 ? 'change' : 'changes'}` : 'No pending changes';
+      ? `${state.pending} ${state.pending === 1 ? 'change' : 'changes'} queued` : 'Nothing queued';
     element('skip').disabled = !state.canSkip;
     element('skip').textContent = 'Skip current';
     element('progress').hidden = state.progress === null;
