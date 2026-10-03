@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
   "description": "An independent companion for watching saved Codex edits with typing replay, file following, and local inspection reports.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {

@@ -30,13 +30,17 @@ class InspectionFeed {
 
   folderFor(uri) {
     const folder = this.api.workspace.getWorkspaceFolder(uri);
-    return folder && this.api.Uri.joinPath(folder.uri, ACTIVITY_PATH).toString() === uri.toString()
+    // Native watchers can coalesce creation of a directory and its first file.
+    // Either notification should read the one supported report path.
+    return folder && [ACTIVITY_PATH, '.codex-live-follow'].some(relative =>
+      this.api.Uri.joinPath(folder.uri, relative).toString() === uri.toString())
       ? folder : undefined;
   }
 
   schedule(uri, generation) {
     const folder = this.folderFor(uri);
     if (!folder) return false;
+    uri = this.api.Uri.joinPath(folder.uri, ACTIVITY_PATH);
     const key = uri.toString();
     const revision = ++this.serial;
     this.revisions.set(key, revision);

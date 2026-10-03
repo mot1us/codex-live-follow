@@ -5,6 +5,7 @@ VS Code. It replays saved file changes and optionally displays inspection report
 
 ### Changes
 
+- The first inspection report is also read when a watcher reports only its new containing folder.
 - New projects stay paused until following is enabled; the project choice is remembered.
 - Existing project pause and enable settings are preserved.
 - A standalone inspection helper works in other projects without npm dependencies.

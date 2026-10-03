@@ -69,7 +69,9 @@ async function run() {
       path: path.basename(source.fsPath), line: 20,
       message: 'Inspecting a real source line', phase: 'suspect' }));
     await until(() => api.getState().status === 'inspecting' && api.getState().line === 20,
-      'local inspection report reaches the real sidebar');
+      'local inspection report reaches the real sidebar', 10000,
+      () => JSON.stringify({ state: api.getState(),
+        visibleEditors: vscode.window.visibleTextEditors.map(editor => editor.document.uri.toString()) }));
     await until(() => vscode.window.visibleTextEditors.some(editor =>
       editor.document.uri.toString() === source.toString() &&
       editor.visibleRanges.some(range => range.start.line <= 19 && range.end.line >= 19)),

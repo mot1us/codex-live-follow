@@ -51,6 +51,17 @@ test('a reported line is revealed without editing source or creating a typing re
   assert.equal(mock.shown.length, 1, 'a duplicate report must not run twice');
 });
 
+test('a coalesced activity-directory creation still reveals its first report', async t => {
+  const { mock, controller, uri, signal } = await fixture(t);
+  mock.put(signal, JSON.stringify(report()));
+  // Some native watchers emit only the containing directory creation.
+  mock.write(mock.uri('.codex-live-follow'), '', true);
+  await until(() => controller.getState().status === 'inspecting');
+  assert.equal(mock.shown[0].document.uri.toString(), uri.toString());
+  assert.equal(controller.getState().line, 2);
+  assert.equal(controller.inspections.seen.get(signal.toString()), 'first');
+});
+
 test('background inspections wait, skip works, and dirty documents are protected', async t => {
   const { mock, controller, uri, signal } = await fixture(t);
   mock.events.windowState.fire({ focused: false });

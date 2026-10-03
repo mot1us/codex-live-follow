@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — Beta inspection reliability
+
+- Read the first inspection report when a native watcher combines its file and directory creation into one notification.
+- Include sidebar state in host-test timeout diagnostics.
+
 ## 0.7.0 — GitHub beta
 
 - New projects ask once before following saved changes, then remember the choice. Existing project settings are preserved.
