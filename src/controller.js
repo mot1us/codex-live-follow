@@ -37,7 +37,7 @@ class LiveFollow {
     this.replayContents = new Map();
     this.replayCounter = 0;
     this.generation = 0;
-    this.enabled = this.config('enabled', true);
+    this.enabled = this.readEnabled();
     this.disposed = false;
     this.playing = false;
     this.initializing = false;
@@ -65,6 +65,42 @@ class LiveFollow {
     return this.api.workspace.getConfiguration('codexLiveFollow').get(key, fallback);
   }
 
+  hasProjectDecision() {
+    const setting = this.api.workspace.getConfiguration('codexLiveFollow').inspect('enabled');
+    return typeof setting?.workspaceValue === 'boolean' ||
+      typeof setting?.workspaceFolderValue === 'boolean' ||
+      typeof this.context.workspaceState.get('followDecision') === 'boolean';
+  }
+
+  readEnabled() {
+    const setting = this.api.workspace.getConfiguration('codexLiveFollow').inspect('enabled');
+    const explicit = typeof setting?.workspaceValue === 'boolean' ||
+      typeof setting?.workspaceFolderValue === 'boolean';
+    const approved = explicit || this.context.workspaceState.get('followDecision') === true;
+    return approved && this.config('enabled', true);
+  }
+
+  async askFirstUse() {
+    if (this.disposed || this.promptPending || !this.api.workspace.workspaceFolders?.length ||
+      this.hasProjectDecision()) return;
+    this.promptPending = true;
+    try {
+      // Dismissing the invitation keeps the project paused and avoids repeated prompts.
+      await this.context.workspaceState.update('followDecision', false);
+      const generation = this.generation;
+      const choice = await this.api.window.showInformationMessage(
+        'Enable Live Follow in this project? It can switch files and show saved edits while Codex works.',
+        'Enable for this project', 'Keep paused');
+      if (this.disposed || generation !== this.generation) return;
+      if (choice === 'Enable for this project') await this.setSetting('enabled', true);
+    } catch (error) {
+      this.log(`Could not show first-use controls: ${String(error)}`);
+    } finally {
+      this.promptPending = false;
+      this.applyConfiguration();
+    }
+  }
+
   numberConfig(key, fallback, min, max) {
     const value = this.config(key, fallback);
     return typeof value === 'number' && Number.isFinite(value)
@@ -79,10 +115,10 @@ class LiveFollow {
     let status = 'watching';
     let title = 'Watching for edits';
     let detail = 'Saved workspace changes will appear in the editor.';
-    if (!this.enabled) {
-      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on when you are ready.';
-    } else if (!this.api.workspace.workspaceFolders?.length) {
+    if (!this.api.workspace.workspaceFolders?.length) {
       status = 'empty'; title = 'Open a workspace folder'; detail = 'Open the folder where your agent is editing files.';
+    } else if (!this.enabled) {
+      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on when you are ready.';
     } else if (this.initializing) {
       status = 'preparing'; title = 'Preparing workspace'; detail = 'Reading existing files before following new edits.';
     } else if (this.isWaiting()) {
@@ -131,6 +167,9 @@ class LiveFollow {
   }
 
   async setSetting(key, value) {
+    if (key === 'enabled' && this.api.workspace.workspaceFolders?.length) {
+      await this.context.workspaceState.update('followDecision', value);
+    }
     const target = this.api.workspace.workspaceFolders?.length
       ? this.api.ConfigurationTarget.Workspace : this.api.ConfigurationTarget.Global;
     await this.api.workspace.getConfiguration('codexLiveFollow').update(key, value, target);
@@ -170,7 +209,9 @@ class LiveFollow {
       if (this.currentJob) { this.currentJob.skip = true; this.currentJob.wake?.(); }
     });
     this.disposables.push(
-      workspace.onDidChangeWorkspaceFolders(() => { void this.resetWorkspace(); }),
+      workspace.onDidChangeWorkspaceFolders(() => {
+        void this.resetWorkspace().then(() => this.askFirstUse());
+      }),
       workspace.onDidChangeConfiguration(event => {
         if (!event.affectsConfiguration('codexLiveFollow')) return;
         this.applyConfiguration();
@@ -221,12 +262,13 @@ class LiveFollow {
       })
     );
     await this.resetWorkspace();
+    void this.askFirstUse();
     this.log('Started. File writes are detected locally in the workspace extension host.');
   }
 
   applyConfiguration() {
     if (this.disposed) return;
-    const enabled = this.config('enabled', true);
+    const enabled = this.readEnabled();
     if (this.enabled !== enabled) this.cancelCurrent();
     this.enabled = enabled;
     if (!this.enabled) { this.queue.length = 0; this.clearHighlight(); }

@@ -1,9 +1,9 @@
 {
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
-  "description": "Watch workspace edits unfold with typing replay, automatic file following, and controls that respect your editing.",
-  "version": "0.6.0",
-  "publisher": "local",
+  "description": "An independent companion for watching saved Codex edits with typing replay, file following, and local inspection reports.",
+  "version": "0.7.0",
+  "publisher": "mot1us",
   "license": "MIT",
   "engines": {
     "vscode": "^1.96.0"
@@ -31,7 +31,8 @@
     "package": "node scripts/package.js",
     "package:check": "node scripts/check-package.js",
     "vscode:prepublish": "npm run check && npm test",
-    "test:integration": "node scripts/test-host.js"
+    "test:integration": "node scripts/test-host.js",
+    "test:packaged": "node scripts/test-package-host.js"
   },
   "contributes": {
     "commands": [
@@ -93,7 +94,7 @@
         "codexLiveFollow.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Follow external workspace writes. Open the Live Follow sidebar from the activity bar or status bar to pause or resume."
+          "description": "Follow external workspace writes after enabling Live Follow for this project. Open the sidebar from the activity bar or status bar to pause or resume."
         },
         "codexLiveFollow.mode": {
           "type": "string",

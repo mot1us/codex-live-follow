@@ -3,7 +3,8 @@
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { runTests } = require('@vscode/test-electron');
+const { spawn } = require('node:child_process');
+const { runTests, resolveCliArgsFromVSCodeExecutablePath, downloadAndUnzipVSCode } = require('@vscode/test-electron');
 
 async function main() {
   const root = path.resolve(__dirname, '..');
@@ -26,10 +27,38 @@ async function main() {
       // Exercise Windows-style virtual document line endings on every host.
       'files.eol': '\r\n',
     }));
+    let developmentPath = root;
+    let executable = process.env.VSCODE_EXECUTABLE_PATH || undefined;
+    if (process.env.LIVE_FOLLOW_VSIX) {
+      executable ||= await downloadAndUnzipVSCode({ version: process.env.VSCODE_VERSION || 'stable' });
+      const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(executable, { reuseMachineInstall: true });
+      // Run the Windows CLI through Electron directly, avoiding .cmd shell quoting.
+      const installExecutable = process.platform === 'win32' ? executable : cli;
+      const installPrefix = process.platform === 'win32'
+        ? [path.join(path.dirname(executable), 'resources', 'app', 'out', 'cli.js'), ...cliArgs] : cliArgs;
+      await new Promise((resolve, reject) => {
+        const installing = spawn(installExecutable, [...installPrefix,
+          '--install-extension', path.resolve(process.env.LIVE_FOLLOW_VSIX), '--force',
+          `--user-data-dir=${profile}`, `--extensions-dir=${extensions}`
+        ], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, windowsHide: true, stdio: 'inherit' });
+        installing.on('error', reject);
+        installing.on('exit', code => code === 0 ? resolve() : reject(new Error(`VSIX installation failed (${code}).`)));
+      });
+      const manifest = require('../package.json');
+      const prefix = `${manifest.publisher}.${manifest.name}-${manifest.version}`.toLowerCase();
+      const directory = (await fs.readdir(extensions)).find(name => name.toLowerCase() === prefix);
+      if (!directory) throw new Error('The exact VSIX did not install in the disposable profile.');
+      developmentPath = path.join(extensions, directory);
+      const installed = JSON.parse(await fs.readFile(path.join(developmentPath, 'package.json'), 'utf8'));
+      if (installed.publisher !== manifest.publisher || installed.version !== manifest.version || installed.name !== manifest.name) {
+        throw new Error('Installed package identity differs from the release manifest.');
+      }
+      console.log(`Testing installed VSIX ${prefix} in a fresh profile.`);
+    }
     await runTests({
-      extensionDevelopmentPath: root,
+      extensionDevelopmentPath: developmentPath,
       extensionTestsPath: path.join(root, 'integration', 'run.js'),
-      vscodeExecutablePath: process.env.VSCODE_EXECUTABLE_PATH || undefined,
+      vscodeExecutablePath: executable,
       version: process.env.VSCODE_VERSION || 'stable',
       launchArgs: [
         workspace,

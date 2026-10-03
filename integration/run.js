@@ -19,6 +19,10 @@ async function run() {
   const extension = vscode.extensions.getExtension(`${manifest.publisher}.${manifest.name}`);
   assert.ok(extension, 'development extension is installed');
   const api = await extension.activate();
+  assert.equal(api.getState().enabled, false, 'fresh projects must wait for the user to enable following');
+  await vscode.commands.executeCommand('codexLiveFollow.resume');
+  assert.equal(api.getState().enabled, true, 'the project choice enables following');
+  console.log('PASS fresh-profile first-use pause and explicit project enable');
   const config = vscode.workspace.getConfiguration('codexLiveFollow');
   for (const [key, value] of Object.entries({
     enabled: true, pauseOnInteraction: true, pauseWhenUnfocused: false, idleDelayMs: 500,

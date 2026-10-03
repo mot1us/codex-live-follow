@@ -1,62 +1,79 @@
 # Codex Live Follow
 
-A VS Code extension that lets you watch saved code changes unfold as fast typing.
+**Free, open-source, independent companion for Codex in desktop VS Code.**
+Not affiliated with or endorsed by OpenAI.
 
-## What it does
+Watch saved code edits unfold as fast typing, or jump straight to changed lines.
+The viewer runs locally without AI calls, network requests, telemetry, or an API key.
+Codex, VS Code, and other extensions have their own requirements and data handling.
 
-- Watches text files in your open workspace for changes.
-- Automatically switches to the changed file and replays the edit in a read-only preview.
-- Opens the real file afterward and highlights the changed lines.
-- Shows the current file, replay progress, and pending changes in a sidebar.
-- Highlights files and lines reported by an agent during a bug investigation.
+## Install the beta
 
-Codex makes the edits. Live Follow uses VS Code's file watcher and editor APIs to display them. The typing effect is a visual replay of a saved change, and the animation preserves the real source file.
+1. Open [GitHub Releases](https://github.com/mot1us/codex-live-follow/releases) and
+   download the latest beta's `codex-live-follow-<version>.vsix` asset.
+2. In VS Code, open **Extensions → … → Install from VSIX…** and select that file.
+3. Reload VS Code if prompted, then open the local folder where Codex is working.
+4. Choose **Enable for this project** when invited. Dismissing the invitation keeps
+   following paused. Open the **Live Follow** activity bar icon to enable it later.
 
-## How to use it
+Ordinary installation needs no npm, build tools, or API key. Desktop VS Code 1.96
+or newer is required. The first supported scope is **local folders on macOS,
+Windows, and Linux**. Remote workspaces and alternative editors are outside this
+beta's support claim. Marketplace publication is pending.
 
-1. Open the same workspace folder that Codex is editing.
-2. Click the **Live Follow** terminal/play icon in the left toolbar, or **Type edits** in the status bar.
-3. Keep **Follow edits** enabled and ask Codex to work on your project.
+### Upgrading the local prototype
 
-The sidebar lets you pause/resume, choose typing or direct follow, adjust typing speed, and skip a replay. It can pause while you edit or when VS Code is in the background. Unsaved files are protected, and your own editor saves are ignored by default.
+This beta's extension ID is `mot1us.codex-live-follow`. Remove or disable the older
+`local.codex-live-follow` extension before installing it so only one watcher runs.
+Existing `codexLiveFollow` VS Code settings are still used. Explicit project enable
+or pause settings are preserved; new projects ask once before following.
 
-## Watching a bug investigation
+The `mot1us` identity matches the repository owner's GitHub name. Microsoft
+Marketplace publisher registration is pending. If a different publisher ID is
+needed later, migration will require installing that new identity.
 
-Live Follow can show the source line an agent is checking before any edit happens.
-The sidebar displays **Inspecting code**, the file and line, and a short explanation.
-An agent can label a location as a possible cause while investigating it.
+### Beta updates
 
-File watchers cannot detect which source lines an agent reads. This feature uses
-explicit local reports from the agent; it does not find bugs itself. This repository's
-`AGENTS.md` asks coding agents to report meaningful inspection locations automatically.
-To use it in another project, add the same reporting instruction to that project's
-agent instructions and provide a helper, or have the agent write the report directly.
+Download and install newer VSIX files manually. The publisher/name pair must stay
+consistent for an in-place upgrade. VSIX installations have automatic updates off
+by default; enable Auto Update after moving to the eventual Marketplace listing.
 
-From this repository root:
+## What you will see
 
-```sh
-node scripts/inspect-line.js assets/sidebar.css 15 "Checking the status card height" suspect
-```
+- A saved external edit opens in a temporary read-only editor and replays as typing.
+- The latest real file opens afterward with changed lines highlighted.
+- **Follow changed lines** mode skips the animation and jumps to the changed block.
+- The sidebar shows the current file, progress, pending changes, and pause controls.
+- Typing or navigating in the editor can pause following. Unsaved source is protected.
+- Optional inspection reports reveal the file and line an agent is checking.
 
-The helper writes `.codex-live-follow/activity.json` in the current workspace:
+The typing effect is a replay of a completed saved change. It preserves real source
+files. The watcher follows external writes and cannot identify whether Codex, a
+formatter, a generator, or another tool made a particular edit.
 
-```json
-{"id":"unique-report-id","path":"assets/sidebar.css","line":15,"endLine":27,"message":"Checking the status card height","phase":"inspect"}
-```
+## Optional: watch a bug investigation
 
-Use a new `id` for each report, a relative file path, and one-based line numbers.
-`endLine` and `phase` are optional; phase is `inspect` or `suspect`.
-Only new writes are followed, so reopening a project does not replay old reports.
-Reports are validated, size limited, and use the same bounded queue, pause controls,
-and unsaved-file protection as edits. Add `.codex-live-follow/` to your project's
-`.gitignore`. Neither the helper nor the extension makes network or AI calls.
+Edit replay needs no project setup. Inspection visits need instructions asking the
+agent to report meaningful file and line locations. Download the standalone helper
+and follow [inspection setup](docs/inspection-setup.md). The helper needs Node.js
+18 or newer; no npm installation is needed.
 
-## Install
+Live Follow displays **Inspecting code**, the location, and a short explanation.
+It displays the agent's explicit reports; it does not infer file reads or find bugs.
+Pause controls and unsaved-file protection also apply to inspections.
 
-Requires desktop VS Code 1.96 or newer. Build an installer with `npm ci` followed by `npm run package`. Use **Extensions → … → Install from VSIX…** and choose the generated `.vsix` file in `dist/`. Reload VS Code if prompted.
+## Feedback
+
+Try the [beta testing guide](docs/beta-testing.md) and report problems through
+[GitHub Issues](https://github.com/mot1us/codex-live-follow/issues). Use disposable
+examples when sharing logs or recordings. Independent tester feedback is required
+before the Marketplace release.
 
 ## Development
 
-The extension makes no AI or network calls and needs no API key. Install development tools with `npm ci`; run checks with `npm test`, and build a VSIX with `npm run package`.
+The runtime has no third-party dependencies. For source development, install Node.js
+22 or newer and run `npm ci`, `npm test`, and `npm run package`.
+`npm run test:packaged` installs and exercises the generated VSIX in a fresh profile.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [release preparation](docs/releasing.md).
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development instructions. Independent, unofficial extension. MIT licensed.
+MIT licensed. [Security and privacy](SECURITY.md).

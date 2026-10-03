@@ -62,6 +62,8 @@ function createVscodeMock(options = {}) {
   const frames = [];
   const closedTabs = [];
   const output = [];
+  const informationMessages = [];
+  const workspaceValues = new Map(Object.entries(options.workspaceState || {}));
   const config = {
     enabled: true, mode: 'typing', typingCharsPerSecond: 400,
     maxReplayDurationMs: 1000, minimumDisplayMs: 100,
@@ -144,6 +146,10 @@ function createVscodeMock(options = {}) {
         return { dispose: () => viewProviders.delete(id) };
       },
       async showQuickPick() { return undefined; },
+      async showInformationMessage(message, ...choices) {
+        informationMessages.push({ message, choices });
+        return hooks.showInformationMessage ? hooks.showInformationMessage(message, choices) : options.firstUseChoice;
+      },
       async showTextDocument(document, showOptions) {
         if (hooks.showTextDocument) await hooks.showTextDocument(document, showOptions);
         const editor = {
@@ -200,9 +206,11 @@ function createVscodeMock(options = {}) {
       getConfiguration() {
         return {
           get: (key, fallback) => config[key] ?? fallback,
-          inspect: key => ({ workspaceValue: config[key] }),
+          inspect: key => options.explicitSettings === false
+            ? { defaultValue: config[key] } : { workspaceValue: config[key] },
           async update(key, value) {
             config[key] = value;
+            options.explicitSettings = true;
             events.configuration.fire({ affectsConfiguration: name =>
               name === 'codexLiveFollow' || name === `codexLiveFollow.${key}` });
           }
@@ -266,11 +274,18 @@ function createVscodeMock(options = {}) {
   const context = {
     subscriptions,
     extensionUri: Uri.file('/extension'),
-    workspaceState: { get: (_key, fallback) => fallback, async update() {} }
+    workspaceState: {
+      get: (key, fallback) => workspaceValues.get(key) ?? fallback,
+      async update(key, value) {
+        if (value === undefined) workspaceValues.delete(key);
+        else workspaceValues.set(key, value);
+      }
+    }
   };
   return {
     vscode, context, config, events, files, documents, watchers, commands,
     shown, frames, closedTabs, output, hooks, put, documentFor, viewProviders,
+    workspaceValues, informationMessages,
     uri: name => Uri.file(`/workspace/${name}`),
     write(uri, content, created = false) {
       put(uri, content);

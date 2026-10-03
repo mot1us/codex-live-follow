@@ -111,7 +111,7 @@ class FollowSidebar {
       <p id="status-detail">Getting the latest playback status.</p>
       <p id="current-file" class="file" hidden></p>
       <progress id="progress" max="100" value="0" aria-label="Typing replay progress" hidden></progress>
-      <div class="queue-row"><span id="queue">No pending changes</span><button id="skip" class="text-button" disabled>Skip replay</button></div>
+      <div class="queue-row"><span id="queue">No pending changes</span><button id="skip" class="text-button" disabled>Skip current</button></div>
     </section>
 
     <section class="controls" aria-label="Playback controls">

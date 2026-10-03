@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — GitHub beta
+
+- New projects ask once before following saved changes, then remember the choice. Existing project settings are preserved.
+- Changed the GitHub beta identity to `mot1us.codex-live-follow`. Marketplace registration is pending; disable or remove the old `local` build when migrating.
+- Made the optional inspection helper portable to unrelated projects with no repository dependencies.
+- Added downloadable beta assets, installation and update instructions, tester guidance, and issue reporting.
+- Added checks for first-use behavior, helper portability, and installing the exact packaged extension in a fresh profile.
+
 ## 0.6.0
 
 - Added local inspection reports so agents can reveal source lines and describe what they are checking during bug investigations.
