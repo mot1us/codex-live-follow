@@ -38,13 +38,17 @@
       ? 'Changes made here are saved for this workspace.' : 'Changes made here are saved in your VS Code user settings.';
     document.querySelector('.status-card').dataset.status = state.status;
     element('status-title').textContent = state.title;
+    element('status-title').title = state.title;
     element('status-detail').textContent = state.detail;
+    element('status-detail').title = state.detail;
     element('current-file').hidden = !state.file;
-    element('current-file').textContent = state.file;
-    element('current-file').title = state.file;
+    const location = state.file && state.line ? `${state.file}:${state.line}` : state.file;
+    element('current-file').textContent = location;
+    element('current-file').title = location;
     element('queue').textContent = state.pending
       ? `${state.pending} pending ${state.pending === 1 ? 'change' : 'changes'}` : 'No pending changes';
     element('skip').disabled = !state.canSkip;
+    element('skip').textContent = 'Skip current';
     element('progress').hidden = state.progress === null;
     element('progress').value = state.progress ?? 0;
     for (const key of settings) {

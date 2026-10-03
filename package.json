@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
   "description": "Watch workspace edits unfold with typing replay, automatic file following, and controls that respect your editing.",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "publisher": "local",
   "license": "MIT",
   "engines": {
@@ -138,6 +138,13 @@
           "minimum": 100,
           "maximum": 5000,
           "description": "Minimum time to show a changed block before following the next one."
+        },
+        "codexLiveFollow.inspectionDisplayMs": {
+          "type": "number",
+          "default": 1500,
+          "minimum": 300,
+          "maximum": 10000,
+          "description": "How long to show each file and line reported by an agent during a code inspection."
         },
         "codexLiveFollow.maxFileSizeKB": {
           "type": "number",

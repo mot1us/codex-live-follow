@@ -3,6 +3,8 @@ dist/
 *.vsix
 *.vsix.sha256
 .vscode-test/
+.vscode/settings.json
+.codex-live-follow/
 coverage/
 *.log
 .DS_Store

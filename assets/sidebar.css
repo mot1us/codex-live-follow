@@ -13,18 +13,23 @@ h2 { margin: 0; font-size: 12px; font-weight: 600; }
 p { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.5; }
 .intro > p { font-size: 12px; }
 .status-card { margin: 22px 0 12px; padding: 14px; border: 1px solid var(--vscode-widget-border, var(--vscode-sideBarSectionHeader-border, transparent)); border-radius: 6px; background: var(--vscode-editor-background); }
-.status-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.status-heading { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; min-height: 18px; }
+.status-heading h2 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--vscode-testing-iconPassed, #73c991); }
 [data-status="paused"] .status-dot, [data-status="empty"] .status-dot { background: var(--vscode-descriptionForeground); }
 [data-status="waiting"] .status-dot { background: var(--vscode-editorWarning-foreground); }
+[data-status="inspecting"] .status-dot { background: var(--vscode-editorWarning-foreground, #cca700); }
 [data-status="playing"] .status-dot, [data-status="preparing"] .status-dot { background: var(--vscode-progressBar-background); }
-#status-detail { font-size: 12px; }
-.file { margin-top: 10px; font-family: var(--vscode-editor-font-family); font-size: 11px; overflow-wrap: anywhere; }
+#status-detail { font-size: 12px; height: 3em; overflow: hidden; }
+.file { margin-top: 10px; height: 1.5em; font-family: var(--vscode-editor-font-family); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 progress { display: block; width: 100%; height: 4px; margin-top: 12px; border: 0; border-radius: 2px; accent-color: var(--vscode-progressBar-background); }
 progress::-webkit-progress-bar { background: var(--vscode-input-background); border-radius: 2px; }
 progress::-webkit-progress-value { background: var(--vscode-progressBar-background); border-radius: 2px; }
 [hidden] { display: none !important; }
-.queue-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 11px; color: var(--vscode-descriptionForeground); }
+#current-file[hidden], #progress[hidden] { display: block !important; visibility: hidden; }
+.queue-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-top: 14px; min-height: 18px; font-size: 11px; color: var(--vscode-descriptionForeground); }
+#queue { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#skip { flex-shrink: 0; white-space: nowrap; }
 .controls { margin: 0 0 22px; }
 .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0 18px; }
 .control-label { display: block; font-size: 12px; font-weight: 600; }

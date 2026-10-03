@@ -23,7 +23,7 @@ async function run() {
   for (const [key, value] of Object.entries({
     enabled: true, pauseOnInteraction: true, pauseWhenUnfocused: false, idleDelayMs: 500,
     ignoreEditorSaves: true, typingCharsPerSecond: 400, maxReplayDurationMs: 1000,
-    minimumDisplayMs: 100, mode: 'typing'
+    minimumDisplayMs: 100, inspectionDisplayMs: 10000, mode: 'typing'
   })) await config.update(key, value, vscode.ConfigurationTarget.Workspace);
   const startingDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(__dirname, '..', 'src', 'extension.js')));
   await vscode.window.showTextDocument(startingDocument, { preview: false });
@@ -57,6 +57,24 @@ async function run() {
       source: source.toString(), replayTabs: previewTabs().length
     }));
     console.log('PASS real watcher → virtual typing frames → real file; disk untouched');
+
+    const activity = path.join(root, '.codex-live-follow', 'activity.json');
+    await fs.mkdir(path.dirname(activity), { recursive: true });
+    const beforeInspection = frames.length;
+    await fs.writeFile(activity, JSON.stringify({ id: 'host-inspection',
+      path: path.basename(source.fsPath), line: 20,
+      message: 'Inspecting a real source line', phase: 'suspect' }));
+    await until(() => api.getState().status === 'inspecting' && api.getState().line === 20,
+      'local inspection report reaches the real sidebar');
+    await until(() => vscode.window.visibleTextEditors.some(editor =>
+      editor.document.uri.toString() === source.toString() &&
+      editor.visibleRanges.some(range => range.start.line <= 19 && range.end.line >= 19)),
+    'reported line is visible in the real editor');
+    assert.equal(frames.length, beforeInspection, 'inspections do not type or modify source');
+    assert.equal(await fs.readFile(source.fsPath, 'utf8'), text);
+    await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
+    await until(() => api.getState().status === 'watching', 'inspection skips promptly');
+    console.log('PASS local inspection → real source line and sidebar; source untouched');
 
     await vscode.commands.executeCommand('codexLiveFollow.pause');
     assert.equal(vscode.workspace.getConfiguration('codexLiveFollow').get('enabled'), false);

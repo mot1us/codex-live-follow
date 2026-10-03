@@ -4,6 +4,7 @@ const { createHash } = require('node:crypto');
 const { changedHunks } = require('./diff');
 const { makeReplayPlan } = require('./replay');
 const { FollowSidebar, VIEW_ID } = require('./sidebar');
+const { InspectionFeed } = require('./inspection');
 
 const SNAPSHOT_LIMIT = 1200;
 const SNAPSHOT_BYTES = 32 * 1024 * 1024;
@@ -13,7 +14,7 @@ const FRAME_MS = 50;
 const SCHEME = 'codex-live-follow';
 const SKIP_DIRECTORIES = new Set([
   '.git', 'node_modules', 'dist', 'build', 'out', '.next', '.venv',
-  'venv', 'target', 'coverage', '__pycache__', '.vscode-test', '.cache', '.vscode'
+  'venv', 'target', 'coverage', '__pycache__', '.vscode-test', '.cache', '.vscode', '.codex-live-follow'
 ]);
 const digest = text => createHash('sha256').update(text).digest('hex');
 
@@ -31,6 +32,8 @@ class LiveFollow {
     this.queue = [];
     this.watchers = [];
     this.disposables = [];
+    this.inspections = new InspectionFeed(vscode, event => this.handleInspection(event));
+    this.disposables.push(this.inspections);
     this.replayContents = new Map();
     this.replayCounter = 0;
     this.generation = 0;
@@ -90,13 +93,19 @@ class LiveFollow {
         `Following resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds of editor inactivity.`;
     } else if (this.currentJob && !this.currentJob.cancelled) {
       status = 'playing'; title = 'Following an edit'; detail = 'Showing the latest saved change.';
+      if (this.currentJob.kind === 'inspection') {
+        status = 'inspecting';
+        title = this.currentJob.phase === 'suspect' ? 'Checking a possible cause' : 'Inspecting code';
+        detail = this.currentJob.message;
+      }
     }
     const job = this.currentJob && !this.currentJob.cancelled ? this.currentJob : undefined;
     return {
       enabled: this.enabled, status, title, detail,
       configurationScope: this.api.workspace.workspaceFolders?.length ? 'workspace' : 'user',
       file: job ? this.api.workspace.asRelativePath(job.uri, false) : '',
-      pending: this.queue.length, canSkip: status === 'playing',
+      line: job?.kind === 'inspection' ? job.line : null,
+      pending: this.queue.length, canSkip: status === 'playing' || status === 'inspecting',
       progress: status === 'playing' && typeof job?.progress === 'number' ? job.progress : null,
       mode: this.config('mode', 'typing'),
       speed: this.numberConfig('typingCharsPerSecond', 120, 20, 400),
@@ -112,6 +121,7 @@ class LiveFollow {
     else if (!this.api.workspace.workspaceFolders?.length) this.status.text = '$(folder) Open a folder';
     else if (this.initializing) this.status.text = '$(sync~spin) Follow preparing';
     else if (this.isWaiting()) this.status.text = '$(debug-pause) Follow waiting';
+    else if (this.currentJob?.kind === 'inspection') this.status.text = '$(search) Inspecting code';
     else if (this.currentJob) this.status.text = '$(play) Following edits';
     else this.status.text = this.config('mode', 'typing') === 'typing'
       ? '$(keyboard) Type edits' : '$(eye) Follow edits';
@@ -258,6 +268,7 @@ class LiveFollow {
 
   async resetWorkspace() {
     const generation = ++this.generation;
+    this.inspections.reset();
     this.cancelCurrent();
     for (const watcher of this.watchers) watcher.dispose();
     this.watchers = [];
@@ -284,7 +295,7 @@ class LiveFollow {
     }
     try {
       const files = await this.api.workspace.findFiles('**/*',
-        '**/{.git,node_modules,dist,build,out,.next,.venv,venv,target,coverage,__pycache__,.vscode-test,.cache,.vscode}/**',
+        '**/{.git,node_modules,dist,build,out,.next,.venv,venv,target,coverage,__pycache__,.vscode-test,.cache,.vscode,.codex-live-follow}/**',
         SNAPSHOT_LIMIT);
       if (this.disposed || generation !== this.generation) return;
       let next = 0;
@@ -366,7 +377,8 @@ class LiveFollow {
   }
 
   scheduleRead(uri) {
-    if (this.disposed || this.isIgnored(uri)) return;
+    if (this.disposed) return;
+    if (this.inspections.schedule(uri, this.generation) || this.isIgnored(uri)) return;
     const key = uri.toString();
     const revision = ++this.readSerial;
     this.revisions.set(key, revision);
@@ -393,7 +405,7 @@ class LiveFollow {
       if (saved) this.savedByEditor.delete(key);
       if (!this.enabled || previous === current || this.isDirty(uri)) return;
       if (this.config('ignoreEditorSaves', true) && saved?.expires > Date.now() && saved.hash === digest(current)) return;
-      const queued = this.queue.find(job => job.uri.toString() === key);
+      const queued = this.queue.find(job => job.kind !== 'inspection' && job.uri.toString() === key);
       const active = this.currentJob?.uri.toString() === key ? this.currentJob : undefined;
       // Preserve the earliest unseen baseline when multiple writes are coalesced.
       const before = queued?.before ?? active?.displayedText ?? previous ?? '';
@@ -401,11 +413,7 @@ class LiveFollow {
       if (active) this.cancelCurrent();
       const job = { uri, before, after: current, generation,
         bytes: Buffer.byteLength(before) + Buffer.byteLength(current) };
-      this.queue.push(job);
-      let bytes = this.queue.reduce((sum, pending) => sum + pending.bytes, 0);
-      while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) bytes -= this.queue.shift().bytes;
-      this.updateStatus();
-      void this.playQueue();
+      this.enqueue(job);
     } finally {
       reads.delete(revision);
       if (this.reading.get(key) === reads && !reads.size) this.reading.delete(key);
@@ -415,6 +423,22 @@ class LiveFollow {
 
   releaseRevision(key) {
     if (!this.initializing && !this.pendingReads.has(key) && !this.reading.has(key)) this.revisions.delete(key);
+  }
+
+  async handleInspection(event) {
+    if (this.disposed || !this.enabled || event.generation !== this.generation ||
+      this.isIgnored(event.uri) || this.isDirty(event.uri)) return;
+    if (await this.readText(event.uri) === null || this.disposed || !this.enabled ||
+      event.generation !== this.generation || this.isDirty(event.uri)) return;
+    this.enqueue({ ...event, kind: 'inspection', bytes: Buffer.byteLength(event.message) });
+  }
+
+  enqueue(job) {
+    this.queue.push(job);
+    let bytes = this.queue.reduce((sum, pending) => sum + pending.bytes, 0);
+    while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) bytes -= this.queue.shift().bytes;
+    this.updateStatus();
+    void this.playQueue();
   }
 
   clearHighlight() {
@@ -442,6 +466,10 @@ class LiveFollow {
         this.currentJob = job;
         this.updateStatus();
         try {
+          if (job.kind === 'inspection') {
+            await this.showChange(job, { start: job.line - 1, end: job.endLine });
+            continue;
+          }
           const hunks = changedHunks(job.before, job.after).slice(0, 6);
           if (this.config('mode', 'typing') === 'typing') await this.playTyping(job, hunks[0]);
           else for (const hunk of hunks) {
@@ -492,9 +520,12 @@ class LiveFollow {
     editor.revealRange(range, this.api.TextEditorRevealType.InCenterIfOutsideViewport);
     editor.setDecorations(this.highlight, [range]);
     this.highlightedEditor = editor;
+    const displayMs = job.kind === 'inspection'
+      ? this.numberConfig('inspectionDisplayMs', 1500, 300, 10000)
+      : this.numberConfig('minimumDisplayMs', 450, 100, 5000);
     this.highlightTimer = setTimeout(() => this.clearHighlight(),
-      this.numberConfig('highlightDurationMs', 1400, 250, 10000));
-    await this.delay(this.numberConfig('minimumDisplayMs', 450, 100, 5000), job);
+      Math.max(displayMs, this.numberConfig('highlightDurationMs', 1400, 250, 10000)));
+    await this.delay(displayMs, job);
   }
 
   async closeReplay(uri) {

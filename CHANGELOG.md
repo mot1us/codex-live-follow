@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- Added local inspection reports so agents can reveal source lines and describe what they are checking during bug investigations.
+- Inspection visits share the bounded edit queue and respect pause controls, workspace changes, and unsaved files.
+- Reserved space for dynamic sidebar status rows so filenames and progress no longer move the controls below them.
+- Added a local reporting helper and agent instructions for working on this extension.
+
 ## 0.5.2
 
 - Fixed replay cancelling itself when the sidebar has focus or VS Code delivers a delayed editor-change event.
