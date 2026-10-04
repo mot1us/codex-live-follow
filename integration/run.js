@@ -34,7 +34,7 @@ async function run() {
   await vscode.commands.executeCommand('codexLiveFollow.controls');
   await until(() => api.areControlsReady(), 'sidebar HTML and scripts connect to the extension');
   assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));
-  console.log('PASS dedicated Live Follow sidebar opens in the real host');
+  console.log('PASS dedicated Specter sidebar opens in the real host');
   const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
   const source = vscode.Uri.file(path.join(root, 'live-follow-host-test.js'));
   const frames = [];

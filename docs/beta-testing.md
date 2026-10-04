@@ -6,10 +6,10 @@ for this beta.
 
 ## Try this
 
-1. Install the VSIX in a clean VS Code profile. Disable any older Live Follow build.
-2. Open a throwaway project. Before enabling following, save a file from outside
-   VS Code. Live Follow should stay paused.
-3. Enable following. Have Codex create and edit a few files. Watch the typing replay
+1. Install the VSIX in a clean VS Code profile. Disable any older Specter build.
+2. Open a throwaway project. Before enabling replay, save a file from outside
+   VS Code. Specter should stay paused.
+3. Enable replay. Have Codex create and edit a few files. Watch the typing replay
    finish at the latest real file.
 4. Pick **Changed lines**. Edits should open at the changed block.
 5. Try pause, resume, speed, and skip. Type and switch files while an edit arrives.

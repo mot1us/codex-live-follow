@@ -48,7 +48,7 @@ CI is configured for unit checks on macOS, Windows, and Linux with Node.js 24, p
 
 ## Useful manual checks
 
-- Open the Live Follow activity bar view and use pause/resume, replay mode, speed, and editing preferences. Change a setting through VS Code Settings or a command and confirm the sidebar updates. Verify the panel in light/dark themes and with keyboard navigation.
+- Open the Specter activity bar view and use pause/resume, replay mode, speed, and editing preferences. Change a setting through VS Code Settings or a command and confirm the sidebar updates. Verify the panel in light/dark themes and with keyboard navigation.
 
 - Create and edit HTML, CSS, and JavaScript files; confirm typing replay and direct follow both reach the latest real file.
 - Save the same file repeatedly during a replay. Confirm an old version does not open after the latest one.

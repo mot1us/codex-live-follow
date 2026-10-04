@@ -96,18 +96,18 @@ class FollowSidebar {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
   <link rel="stylesheet" href="${css}">
-  <title>Live Follow Controls</title>
+  <title>Specter Controls</title>
 </head>
 <body>
   <main>
     <header class="intro">
-      <span class="eyebrow">CODEX LIVE FOLLOW</span>
-      <h1>Follow along.</h1>
-      <p>See saved edits as they come in.</p>
+      <span class="eyebrow">BETA</span>
+      <h1>Specter</h1>
+      <p>Replays your agent's saved edits as typing.</p>
     </header>
 
     <section class="status-card" aria-labelledby="status-title" data-status="preparing">
-      <div class="status-heading"><span class="status-dot" aria-hidden="true"></span><h2 id="status-title" role="status">Connecting…</h2></div>
+      <div class="status-heading"><span class="status-dot" aria-hidden="true"></span><h2 id="status-title" role="status">Starting…</h2></div>
       <p id="status-detail">Getting ready.</p>
       <p id="current-file" class="file" hidden></p>
       <progress id="progress" max="100" value="0" aria-label="Typing replay progress" hidden></progress>
@@ -115,9 +115,9 @@ class FollowSidebar {
     </section>
 
     <section class="controls" aria-label="Playback controls">
-      <div class="toggle-row"><div><label for="enabled" class="control-label">Follow edits</label><p>Pause whenever you like.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
+      <div class="toggle-row"><div><label for="enabled" class="control-label">Replay edits</label><p>Turn off to pause.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
       <div class="field"><label class="control-label" for="mode">Show edits as</label><select id="mode" disabled><option value="typing">Typing replay</option><option value="follow">Changed lines</option></select></div>
-      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Chill</span><span>Fast</span></div><p class="hint">Mode and speed kick in on the next replay.</p></div>
+      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Slow</span><span>Fast</span></div><p class="hint">Mode and speed apply to the next replay.</p></div>
     </section>
 
     <section class="preferences" aria-labelledby="preferences-title">

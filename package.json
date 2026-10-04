@@ -1,8 +1,8 @@
 {
   "name": "codex-live-follow",
-  "displayName": "Codex Live Follow",
-  "description": "Follow along in VS Code. See saved edits play back as typing, or go straight to changed lines.",
-  "version": "0.7.3",
+  "displayName": "Specter",
+  "description": "Replays saved file changes as typing in VS Code. Runs locally, with no AI or network connection.",
+  "version": "0.8.0",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {
@@ -12,10 +12,10 @@
     "Other"
   ],
   "keywords": [
+    "specter",
     "codex",
-    "live editing",
+    "coding agents",
     "typing",
-    "ai",
     "file watcher"
   ],
   "activationEvents": [
@@ -38,63 +38,63 @@
     "commands": [
       {
         "command": "codexLiveFollow.toggle",
-        "title": "Toggle Live Follow",
-        "category": "Codex Live Follow"
+        "title": "Toggle Replay",
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.pause",
-        "title": "Pause Following",
-        "category": "Codex Live Follow"
+        "title": "Pause Replay",
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.resume",
-        "title": "Resume Following",
-        "category": "Codex Live Follow"
+        "title": "Resume Replay",
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.controls",
         "title": "Open Controls",
-        "category": "Codex Live Follow"
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.setSpeed",
         "title": "Choose Typing Speed",
-        "category": "Codex Live Follow"
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.setMode",
-        "title": "Choose Replay Mode",
-        "category": "Codex Live Follow"
+        "title": "Choose Edit Display",
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.skipReplay",
         "title": "Skip Current Replay",
-        "category": "Codex Live Follow"
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.showOutput",
         "title": "Show Logs",
-        "category": "Codex Live Follow"
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.openSidebar",
-        "title": "Open Live Follow Sidebar",
-        "category": "Codex Live Follow"
+        "title": "Open Specter Sidebar",
+        "category": "Specter"
       },
       {
         "command": "codexLiveFollow.settings",
         "title": "Extension Settings",
-        "category": "Codex Live Follow",
+        "category": "Specter",
         "icon": "$(settings-gear)"
       }
     ],
     "configuration": {
-      "title": "Codex Live Follow",
+      "title": "Specter",
       "properties": {
         "codexLiveFollow.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Bring saved edits into view in this project. Pause and resume in the Live Follow sidebar."
+          "description": "Show saved file changes in this project. Pause and resume in the Specter sidebar."
         },
         "codexLiveFollow.mode": {
           "type": "string",
@@ -110,7 +110,7 @@
           "default": 120,
           "minimum": 20,
           "maximum": 400,
-          "description": "Pick your typing replay pace, in characters per second."
+          "description": "Typing replay speed, in characters per second."
         },
         "codexLiveFollow.maxReplayCharacters": {
           "type": "number",
@@ -164,7 +164,7 @@
           "default": 3000,
           "minimum": 500,
           "maximum": 60000,
-          "description": "Pick up following after this many milliseconds without editor activity."
+          "description": "Resume after this many milliseconds without editor activity."
         },
         "codexLiveFollow.pauseWhenUnfocused": {
           "type": "boolean",
@@ -191,7 +191,7 @@
       "activitybar": [
         {
           "id": "codexLiveFollow",
-          "title": "Live Follow",
+          "title": "Specter",
           "icon": "assets/sidebar.svg"
         }
       ]

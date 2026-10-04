@@ -1,41 +1,44 @@
-# Codex Live Follow
+# Specter
 
-**Follow along.**
+Specter runs locally. No AI, no network connection. It simply watches your
+project's files for saves and replays the changes as if they're being typed.
 
-See saved edits as they come in. Live Follow brings changed files into view
-and plays back the edits while your agent handles the code.
+This is a fun exercise to see what your agent is up to in the background
+when you ask it to update your project. I built it for Codex, but it should
+work with other agents too, since it's just watching for file changes.
 
-Pick your pace with **Typing replay**, or go straight to **Changed lines**.
-Pause whenever you like.
+This is beta for now! [Let me know if you find any issues](https://github.com/mot1us/codex-live-follow/issues).
 
-## Get it
+## Install
 
 1. Download the `.vsix` from [GitHub Releases](https://github.com/mot1us/codex-live-follow/releases).
 2. In VS Code: **Extensions → … → Install from VSIX…**
 3. Open your project and choose **Enable for this project**.
 
-Use the **Live Follow** icon in the activity bar for controls. Each project
-remembers whether following is on or paused.
+Open **Specter** in the activity bar for controls. Each project remembers
+whether replay is on or paused.
 
 Needs desktop VS Code 1.96 or newer. This beta supports local folders on
 macOS, Windows, and Linux. No build tools or API key needed to install it.
 
-## How it works
+## Using it
 
-Live Follow watches saved files in your project. It shows each edit in a
-read-only preview, then opens the real file. By default, it pauses while you edit.
+**Typing replay** shows the saved changes as typing. **Changed lines** takes
+you straight to the edit. You can change the speed, skip a replay, or pause.
 
-The typing is a replay after a save. It doesn't write to your source files or
-replace unsaved edits. Other tools that save files can trigger it too.
+The typing happens after a file is saved. Specter uses a read-only preview,
+then opens the real file. It doesn't type into your source files or replace
+unsaved edits. By default, it pauses while you're editing.
 
-The extension runs locally. No AI calls, network requests, or telemetry.
-Codex and VS Code handle their own connections.
+It can't tell who saved a file, so other tools can trigger it too. Specter
+doesn't use AI, make network requests, or collect telemetry. Your agent and
+VS Code still use their own connections.
 
-## Follow a code check
+## Optional: see which lines your agent is checking
 
 To see the lines your agent checks, add the optional
-[inspection setup](docs/inspection-setup.md). Visits use locations reported by
-the agent. The helper needs Node.js 18 or newer.
+[inspection setup](docs/inspection-setup.md). The agent has to report those
+locations; Specter can't see them on its own. The helper needs Node.js 18 or newer.
 
 ## Beta notes
 
@@ -43,14 +46,15 @@ Install updates the same way: download the new VSIX and install it.
 If you have the old `local.codex-live-follow` build, remove or disable it first.
 Your `codexLiveFollow` settings still work.
 
-Marketplace publishing comes later. The beta ID is `mot1us.codex-live-follow`;
-[release notes](docs/release-notes.md) cover the pending publisher registration.
+Specter was previously called Codex Live Follow. It keeps the same extension
+ID and settings, so you can install this version over the previous beta.
+Marketplace publishing comes later.
 
 [Try the beta checklist](docs/beta-testing.md) or
 [report a bug](https://github.com/mot1us/codex-live-follow/issues).
 Use a throwaway project when sharing logs or recordings.
 
-## Work on it
+## Development
 
 Node.js 22 or newer. Run `npm ci`, `npm test`, and `npm run package`.
 The extension itself has no third-party dependencies.

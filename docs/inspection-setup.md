@@ -1,6 +1,6 @@
 # Optional inspection setup
 
-Saved edits show up once you enable Live Follow. This setup lets your agent
+Saved edits show up once you enable Specter. This setup lets your agent
 show the file and line it's checking during a code check.
 
 ## Set up a project
@@ -13,7 +13,7 @@ show the file and line it's checking during a code check.
    Create the file if you don't have one.
 
 ```markdown
-## Live Follow inspection reports
+## Specter inspection reports
 
 When checking a bug, show the lines you actually inspect. From the project root:
 
@@ -33,7 +33,7 @@ project root using an existing source file:
 node scripts/inspect-line.js src/app.js 12 "Checking how this value is calculated"
 ```
 
-Live Follow opens the real file, highlights the line, and shows **Taking a look**.
+Specter opens the real file, highlights the line, and shows **Taking a look**.
 Then ask Codex to check a bug. It can report the locations as it works.
 Saved edits still show up if the agent skips these reports.
 
@@ -47,7 +47,7 @@ characters. `endLine` is optional. `phase` is `inspect` or `suspect`.
 {"id":"new-report-123","path":"src/app.js","line":12,"message":"Checking the calculation","phase":"inspect"}
 ```
 
-Live Follow shows new reports. It skips old reports at startup. Visits use the
+Specter shows new reports. It skips old reports at startup. Visits use the
 locations the agent reports. Pause and unsaved edit protection still apply.
 
 To remove this setup, delete the helper, the added agent note, and

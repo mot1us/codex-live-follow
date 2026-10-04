@@ -9,7 +9,7 @@ const { checkPackage } = require('./check-package');
 async function main() {
   const { root, manifest } = await checkPackage();
   const output = path.join(root, 'dist');
-  const filename = `${manifest.name}-${manifest.version}.vsix`;
+  const filename = `specter-${manifest.version}.vsix`;
   const packagePath = path.join(output, filename);
   await fs.mkdir(output, { recursive: true });
   await createVSIX({

@@ -1,4 +1,4 @@
-# Working on Codex Live Follow
+# Working on Specter
 
 During bug investigation, report meaningful source locations so the user can watch
 the investigation in VS Code. From this repository root, run:

@@ -90,7 +90,7 @@ jobs:
           sha256sum --check ./*.sha256
       - uses: actions/upload-artifact@v7
         with:
-          name: codex-live-follow-vsix
+          name: specter-vsix
           path: |
             dist/*.vsix
             dist/*.vsix.sha256
@@ -114,7 +114,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v7
         with:
-          name: codex-live-follow-vsix
+          name: specter-vsix
           path: dist
       - name: Verify artifacts
         working-directory: dist

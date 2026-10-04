@@ -1,6 +1,6 @@
 # Security and privacy
 
-Codex Live Follow reads text files in the open workspace to compare saved versions and display their changes. Source content and replay text are held in memory. Optional inspection setup writes local activity reports in the project; the extension reads these reports and does not execute the helper. Project enable or pause choices are remembered in VS Code settings and workspace state. The extension does not call ChatGPT or another model, require an API key, send telemetry, make network requests, or write animation frames to real source files.
+Specter reads text files in the open workspace to compare saved versions and display their changes. Source content and replay text are held in memory. Optional inspection setup writes local activity reports in the project; the extension reads these reports and does not execute the helper. Project enable or pause choices are remembered in VS Code settings and workspace state. The extension does not call ChatGPT or another model, require an API key, send telemetry, make network requests, or write animation frames to real source files.
 
 For a local workspace it runs on your computer. With a remote workspace, VS Code may run this workspace extension on the remote extension host; the normal VS Code connection carries the editor content. Codex, VS Code, and other extensions have their own data handling, independent of this extension.
 

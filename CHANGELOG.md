@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 — Specter
+
+- Renamed the extension and controls to Specter.
+- Rewrote the README and beta description in the author's own voice.
+- Removed the tagline and simplified the interface wording.
+- Kept the existing extension ID, settings, and inspection setup so beta installs update in place.
+
 ## 0.7.3 — Follow along
 
 - Relaxed the wording in the sidebar, settings, and docs.

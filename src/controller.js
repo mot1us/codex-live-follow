@@ -43,9 +43,9 @@ class LiveFollow {
     this.initializing = false;
     this.quietUntil = 0;
     this.windowFocused = vscode.window.state?.focused !== false;
-    this.output = vscode.window.createOutputChannel('Codex Live Follow');
+    this.output = vscode.window.createOutputChannel('Specter');
     this.status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    this.status.name = 'Codex Live Follow';
+    this.status.name = 'Specter';
     this.status.command = 'codexLiveFollow.controls';
     this.replayEmitter = new vscode.EventEmitter();
     this.stateEmitter = new vscode.EventEmitter();
@@ -89,7 +89,7 @@ class LiveFollow {
       await this.context.workspaceState.update('followDecision', false);
       const generation = this.generation;
       const choice = await this.api.window.showInformationMessage(
-        'Show saved edits in this project? Live Follow will bring changed files into view.',
+        'Enable Specter for this project? It will replay saved changes and open the edited files.',
         'Enable for this project', 'Keep paused');
       if (this.disposed || generation !== this.generation) return;
       if (choice === 'Enable for this project') await this.setSetting('enabled', true);
@@ -113,14 +113,14 @@ class LiveFollow {
 
   getState() {
     let status = 'watching';
-    let title = 'Ready for edits';
-    let detail = 'Waiting for the next saved edit.';
+    let title = 'Waiting for saves';
+    let detail = 'The next saved change will show up here.';
     if (!this.api.workspace.workspaceFolders?.length) {
       status = 'empty'; title = 'Open a project folder'; detail = 'Open a project to get started.';
     } else if (!this.enabled) {
-      status = 'paused'; title = 'Paused'; detail = 'Turn Follow edits on whenever you like.';
+      status = 'paused'; title = 'Paused'; detail = 'Enable replay to show saved edits.';
     } else if (this.initializing) {
-      status = 'preparing'; title = 'Getting ready'; detail = 'Checking the files already here.';
+      status = 'preparing'; title = 'Reading project files'; detail = 'Getting ready to watch for changes.';
     } else if (this.isWaiting()) {
       status = 'waiting';
       const background = !this.windowFocused && this.config('pauseWhenUnfocused', true);
@@ -128,7 +128,7 @@ class LiveFollow {
       detail = background ? 'Resumes when you come back to VS Code.' :
         `Resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds idle.`;
     } else if (this.currentJob && !this.currentJob.cancelled) {
-      status = 'playing'; title = 'An edit came in'; detail = 'Showing the latest save.';
+      status = 'playing'; title = 'Replaying an edit'; detail = 'Showing the latest save.';
       if (this.currentJob.kind === 'inspection') {
         status = 'inspecting';
         title = this.currentJob.phase === 'suspect' ? 'Checking a hunch' : 'Taking a look';
@@ -153,15 +153,15 @@ class LiveFollow {
 
   updateStatus() {
     if (this.disposed) return;
-    if (!this.enabled) this.status.text = '$(eye-closed) Follow paused';
+    if (!this.enabled) this.status.text = '$(eye-closed) Specter: paused';
     else if (!this.api.workspace.workspaceFolders?.length) this.status.text = '$(folder) Open a folder';
-    else if (this.initializing) this.status.text = '$(sync~spin) Follow preparing';
-    else if (this.isWaiting()) this.status.text = '$(debug-pause) Follow waiting';
+    else if (this.initializing) this.status.text = '$(sync~spin) Specter: starting';
+    else if (this.isWaiting()) this.status.text = '$(debug-pause) Specter: waiting';
     else if (this.currentJob?.kind === 'inspection') this.status.text = '$(search) Taking a look';
-    else if (this.currentJob) this.status.text = '$(play) Following edits';
+    else if (this.currentJob) this.status.text = '$(play) Specter: replaying';
     else this.status.text = this.config('mode', 'typing') === 'typing'
-      ? '$(keyboard) Type edits' : '$(eye) Follow edits';
-    this.status.tooltip = `Codex Live Follow: ${this.getState().detail}\nClick for controls.`;
+      ? '$(keyboard) Specter' : '$(eye) Specter';
+    this.status.tooltip = `Specter: ${this.getState().detail}\nClick for controls.`;
     this.status.accessibilityInformation = { label: this.status.tooltip };
     this.stateEmitter.fire();
   }
@@ -654,17 +654,17 @@ class LiveFollow {
     const selected = await this.api.window.showQuickPick([
       { label: 'Typing replay', description: 'Play back each saved edit', value: 'typing' },
       { label: 'Changed lines', description: 'Go straight to the edit', value: 'follow' }
-    ], { title: 'Codex Live Follow: Show Edits As', placeHolder: 'Pick a view' });
+    ], { title: 'Specter: Show Edits As', placeHolder: 'Choose how to display edits' });
     if (selected) await this.setSetting('mode', selected.value);
   }
 
   async chooseSpeed() {
     const selected = await this.api.window.showQuickPick([
-      { label: 'Chill', description: '60 characters per second', value: 60 },
-      { label: 'Steady', description: '120 characters per second', value: 120 },
+      { label: 'Slow', description: '60 characters per second', value: 60 },
+      { label: 'Normal', description: '120 characters per second', value: 120 },
       { label: 'Fast', description: '240 characters per second', value: 240 },
       { label: 'Very fast', description: '400 characters per second', value: 400 }
-    ], { title: 'Codex Live Follow: Typing Speed', placeHolder: 'Pick your pace. Long edits still have a time limit.' });
+    ], { title: 'Specter: Typing Speed', placeHolder: 'Choose a speed. Long edits speed up to fit the time limit.' });
     if (selected) await this.setSetting('typingCharsPerSecond', selected.value);
   }
 

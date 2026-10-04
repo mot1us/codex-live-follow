@@ -19,8 +19,8 @@ function fixture(t, replies = [missingRelease, missingTag, { status: 0, stdout: 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'live-follow-release-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'dist'));
-  const assets = [`${manifest.name}-${manifest.version}.vsix`,
-    `${manifest.name}-${manifest.version}.vsix.sha256`,
+  const assets = [`specter-${manifest.version}.vsix`,
+    `specter-${manifest.version}.vsix.sha256`,
     'inspect-line.js', 'inspect-line.js.sha256', 'inspection-setup.md'];
   for (const name of assets) fs.writeFileSync(path.join(root, 'dist', name), 'test fixture');
   const calls = [];

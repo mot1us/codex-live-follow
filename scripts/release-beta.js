@@ -37,8 +37,8 @@ function releaseBeta(options = {}) {
     throw new Error(`Could not check tag ${tag}: ${tagged.stderr}`);
   }
   const root = options.root || path.resolve(__dirname, '..');
-  const names = [`${manifest.name}-${manifest.version}.vsix`,
-    `${manifest.name}-${manifest.version}.vsix.sha256`,
+  const names = [`specter-${manifest.version}.vsix`,
+    `specter-${manifest.version}.vsix.sha256`,
     'inspect-line.js', 'inspect-line.js.sha256', 'inspection-setup.md'];
   const assets = names.map(name => path.join(root, 'dist', name));
   for (const asset of assets) if (!fs.statSync(asset).isFile()) throw new Error(`Missing ${asset}`);

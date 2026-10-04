@@ -7,7 +7,9 @@ optional inspection helper. Installing the viewer requires no build tools or API
 
 ## Identity and Marketplace status
 
-The beta uses `mot1us.codex-live-follow`, matching the owner's GitHub identity.
+Specter keeps the existing `mot1us.codex-live-follow` extension ID and
+`codexLiveFollow` settings so installs update in place. The repository URL and
+inspection report path also keep their existing names for compatibility.
 The Microsoft Marketplace publisher ID is not registered: Microsoft blocked
 account creation. GitHub distribution can proceed while that is resolved through
 Microsoft's account support. Do not describe the publisher as verified or reserved.
