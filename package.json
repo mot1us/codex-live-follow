@@ -1,8 +1,8 @@
 {
   "name": "codex-live-follow",
   "displayName": "Codex Live Follow",
-  "description": "Watch your agent work in VS Code. Replay saved edits as fast typing or jump straight to changed lines.",
-  "version": "0.7.2",
+  "description": "Follow along in VS Code. See saved edits play back as typing, or go straight to changed lines.",
+  "version": "0.7.3",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {
@@ -94,7 +94,7 @@
         "codexLiveFollow.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Follow saved edits in this project. Use Live Follow in the activity bar to pause or resume."
+          "description": "Bring saved edits into view in this project. Pause and resume in the Live Follow sidebar."
         },
         "codexLiveFollow.mode": {
           "type": "string",
@@ -103,14 +103,14 @@
             "follow"
           ],
           "default": "typing",
-          "description": "Show saved edits as typing, or jump straight to changed lines. Typing uses a read-only preview."
+          "description": "Play back saved edits as typing, or go straight to changed lines. The typing preview is read-only."
         },
         "codexLiveFollow.typingCharsPerSecond": {
           "type": "number",
           "default": 120,
           "minimum": 20,
           "maximum": 400,
-          "description": "Typing replay speed in characters per second."
+          "description": "Pick your typing replay pace, in characters per second."
         },
         "codexLiveFollow.maxReplayCharacters": {
           "type": "number",
@@ -145,7 +145,7 @@
           "default": 1500,
           "minimum": 300,
           "maximum": 10000,
-          "description": "How long to show each file and line your agent reports, in milliseconds."
+          "description": "How long to stay on a line reported by your agent, in milliseconds."
         },
         "codexLiveFollow.maxFileSizeKB": {
           "type": "number",
@@ -157,14 +157,14 @@
         "codexLiveFollow.pauseOnInteraction": {
           "type": "boolean",
           "default": true,
-          "description": "Pause when you type, click in an editor, or switch files."
+          "description": "Pause while you type, click, or switch files."
         },
         "codexLiveFollow.idleDelayMs": {
           "type": "number",
           "default": 3000,
           "minimum": 500,
           "maximum": 60000,
-          "description": "Wait this many milliseconds after you stop editing before following again."
+          "description": "Pick up following after this many milliseconds without editor activity."
         },
         "codexLiveFollow.pauseWhenUnfocused": {
           "type": "boolean",

@@ -1,14 +1,16 @@
 ## Codex Live Follow beta
 
-**Watch your agent work.**
+**Follow along.**
 
-See saved edits play back as typing, or jump straight to changed lines.
-Pause whenever you want.
+See saved edits as they come in. Pick your pace or go straight to changed
+lines. Pause whenever you like.
 
 ### This update
 
-- Shorter wording in the README, sidebar, and settings.
-- The same replay and inspection controls.
+- More relaxed wording in the sidebar, settings, and docs.
+- Less allocation when replaying a small edit in a large file.
+- Sidebar controls only update when their values change.
+- Removed the unused packaging shortcut and stale package entries.
 
 ### Install
 
@@ -28,7 +30,7 @@ or replace unsaved edits. Other tools that save files can trigger it too.
 The extension runs locally. No AI calls, network requests, telemetry, or API key.
 Codex and VS Code handle their own connections.
 
-To follow a bug hunt, download `inspect-line.js` and `inspection-setup.md` below.
+To follow a code check, download `inspect-line.js` and `inspection-setup.md` below.
 The helper needs Node.js 18 or newer. Visits use locations reported by the agent.
 Saved edit replay works without that setup.
 

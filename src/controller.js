@@ -89,7 +89,7 @@ class LiveFollow {
       await this.context.workspaceState.update('followDecision', false);
       const generation = this.generation;
       const choice = await this.api.window.showInformationMessage(
-        'Watch saved edits in this project? Live Follow will open files as your agent works.',
+        'Show saved edits in this project? Live Follow will bring changed files into view.',
         'Enable for this project', 'Keep paused');
       if (this.disposed || generation !== this.generation) return;
       if (choice === 'Enable for this project') await this.setSetting('enabled', true);
@@ -113,12 +113,12 @@ class LiveFollow {
 
   getState() {
     let status = 'watching';
-    let title = 'Watching for edits';
+    let title = 'Ready for edits';
     let detail = 'Waiting for the next saved edit.';
     if (!this.api.workspace.workspaceFolders?.length) {
-      status = 'empty'; title = 'Open a project folder'; detail = 'Open the project your agent is working on.';
+      status = 'empty'; title = 'Open a project folder'; detail = 'Open a project to get started.';
     } else if (!this.enabled) {
-      status = 'paused'; title = 'Following paused'; detail = 'Turn Follow edits on to watch.';
+      status = 'paused'; title = 'Paused'; detail = 'Turn Follow edits on whenever you like.';
     } else if (this.initializing) {
       status = 'preparing'; title = 'Getting ready'; detail = 'Checking the files already here.';
     } else if (this.isWaiting()) {
@@ -128,10 +128,10 @@ class LiveFollow {
       detail = background ? 'Resumes when you come back to VS Code.' :
         `Resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds idle.`;
     } else if (this.currentJob && !this.currentJob.cancelled) {
-      status = 'playing'; title = 'Following an edit'; detail = 'Showing the latest save.';
+      status = 'playing'; title = 'An edit came in'; detail = 'Showing the latest save.';
       if (this.currentJob.kind === 'inspection') {
         status = 'inspecting';
-        title = this.currentJob.phase === 'suspect' ? 'Checking a possible cause' : 'Inspecting code';
+        title = this.currentJob.phase === 'suspect' ? 'Checking a hunch' : 'Taking a look';
         detail = this.currentJob.message;
       }
     }
@@ -151,17 +151,17 @@ class LiveFollow {
     };
   }
 
-  updateStatus(detail) {
+  updateStatus() {
     if (this.disposed) return;
     if (!this.enabled) this.status.text = '$(eye-closed) Follow paused';
     else if (!this.api.workspace.workspaceFolders?.length) this.status.text = '$(folder) Open a folder';
     else if (this.initializing) this.status.text = '$(sync~spin) Follow preparing';
     else if (this.isWaiting()) this.status.text = '$(debug-pause) Follow waiting';
-    else if (this.currentJob?.kind === 'inspection') this.status.text = '$(search) Inspecting code';
+    else if (this.currentJob?.kind === 'inspection') this.status.text = '$(search) Taking a look';
     else if (this.currentJob) this.status.text = '$(play) Following edits';
     else this.status.text = this.config('mode', 'typing') === 'typing'
       ? '$(keyboard) Type edits' : '$(eye) Follow edits';
-    this.status.tooltip = `Codex Live Follow: ${detail || this.getState().detail}\nClick to open the Live Follow sidebar.`;
+    this.status.tooltip = `Codex Live Follow: ${this.getState().detail}\nClick for controls.`;
     this.status.accessibilityInformation = { label: this.status.tooltip };
     this.stateEmitter.fire();
   }
@@ -652,19 +652,19 @@ class LiveFollow {
 
   async chooseMode() {
     const selected = await this.api.window.showQuickPick([
-      { label: 'Typing replay', description: 'Animate saved changes', value: 'typing' },
-      { label: 'Follow changed lines', description: 'Jump without typing animation', value: 'follow' }
-    ], { title: 'Codex Live Follow: Replay Mode', placeHolder: 'Choose how edits appear' });
+      { label: 'Typing replay', description: 'Play back each saved edit', value: 'typing' },
+      { label: 'Changed lines', description: 'Go straight to the edit', value: 'follow' }
+    ], { title: 'Codex Live Follow: Show Edits As', placeHolder: 'Pick a view' });
     if (selected) await this.setSetting('mode', selected.value);
   }
 
   async chooseSpeed() {
     const selected = await this.api.window.showQuickPick([
-      { label: 'Relaxed', description: '60 characters per second', value: 60 },
-      { label: 'Normal', description: '120 characters per second', value: 120 },
+      { label: 'Chill', description: '60 characters per second', value: 60 },
+      { label: 'Steady', description: '120 characters per second', value: 120 },
       { label: 'Fast', description: '240 characters per second', value: 240 },
       { label: 'Very fast', description: '400 characters per second', value: 400 }
-    ], { title: 'Codex Live Follow: Typing Speed', placeHolder: 'Long changes still finish within the duration limit' });
+    ], { title: 'Codex Live Follow: Typing Speed', placeHolder: 'Pick your pace. Long edits still have a time limit.' });
     if (selected) await this.setSetting('typingCharsPerSecond', selected.value);
   }
 

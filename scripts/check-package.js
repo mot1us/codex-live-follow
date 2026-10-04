@@ -23,7 +23,7 @@ async function checkPackage() {
 
   const files = (await listFiles({ cwd: root, packageManager: PackageManager.None }))
     .map(file => file.replace(/\\/g, '/')).sort();
-  const allowed = /^(?:package\.json|README\.md|CHANGELOG\.md|LICENSE\.txt|PRIVACY\.md|SUPPORT\.md|SECURITY\.md|src\/(?:[\w-]+\/)*[\w.-]+\.js|assets\/(?:[\w-]+\/)*[\w.-]+\.(?:png|svg|gif|jpg|jpeg|css|js))$/;
+  const allowed = /^(?:package\.json|README\.md|CHANGELOG\.md|LICENSE\.txt|SECURITY\.md|src\/(?:[\w-]+\/)*[\w.-]+\.js|assets\/(?:[\w-]+\/)*[\w.-]+\.(?:png|svg|gif|jpg|jpeg|css|js))$/;
   const unexpected = files.filter(file => !allowed.test(file));
   assert.deepEqual(unexpected, [], `Unexpected files in package: ${unexpected.join(', ')}`);
 

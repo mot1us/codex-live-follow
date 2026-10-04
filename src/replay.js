@@ -1,26 +1,35 @@
 'use strict';
 
+function insideSurrogatePair(text, index) {
+  const head = text.charCodeAt(index - 1);
+  const tail = text.charCodeAt(index);
+  return head >= 0xd800 && head <= 0xdbff && tail >= 0xdc00 && tail <= 0xdfff;
+}
+
 function makeReplayPlan(before, after) {
-  const oldChars = Array.from(before);
-  const newChars = Array.from(after);
+  // Find unchanged text without allocating character arrays for the whole file.
   let prefix = 0;
   while (
-    prefix < oldChars.length &&
-    prefix < newChars.length &&
-    oldChars[prefix] === newChars[prefix]
+    prefix < before.length &&
+    prefix < after.length &&
+    before[prefix] === after[prefix]
   ) prefix++;
+  if (insideSurrogatePair(before, prefix) || insideSurrogatePair(after, prefix)) prefix--;
 
   let suffix = 0;
   while (
-    suffix < oldChars.length - prefix &&
-    suffix < newChars.length - prefix &&
-    oldChars[oldChars.length - suffix - 1] === newChars[newChars.length - suffix - 1]
+    suffix < before.length - prefix &&
+    suffix < after.length - prefix &&
+    before[before.length - suffix - 1] === after[after.length - suffix - 1]
   ) suffix++;
+  if (insideSurrogatePair(before, before.length - suffix) ||
+    insideSurrogatePair(after, after.length - suffix)) suffix--;
 
+  const end = after.length - suffix;
   return {
-    head: newChars.slice(0, prefix).join(''),
-    typed: newChars.slice(prefix, newChars.length - suffix),
-    tail: newChars.slice(newChars.length - suffix).join('')
+    head: after.slice(0, prefix),
+    typed: Array.from(after.slice(prefix, end)),
+    tail: after.slice(end)
   };
 }
 

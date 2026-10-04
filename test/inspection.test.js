@@ -38,7 +38,7 @@ test('a reported line is revealed without editing source or creating a typing re
   assert.equal(mock.shown[0].document.uri.toString(), uri.toString());
   assert.equal(mock.shown[0].editor.revealed.start.line, 1);
   assert.equal(controller.getState().status, 'inspecting');
-  assert.equal(controller.getState().title, 'Checking a possible cause');
+  assert.equal(controller.getState().title, 'Checking a hunch');
   assert.equal(controller.getState().line, 2);
   assert.equal(controller.getState().progress, null);
   assert.equal(mock.frames.length, 0);

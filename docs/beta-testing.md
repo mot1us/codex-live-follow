@@ -11,7 +11,7 @@ for this beta.
    VS Code. Live Follow should stay paused.
 3. Enable following. Have Codex create and edit a few files. Watch the typing replay
    finish at the latest real file.
-4. Pick **Follow changed lines**. Edits should open at the changed block.
+4. Pick **Changed lines**. Edits should open at the changed block.
 5. Try pause, resume, speed, and skip. Type and switch files while an edit arrives.
    Your unsaved work should stay put.
 6. Reload VS Code. Your project choice should stick. A new project should ask once.
@@ -24,7 +24,7 @@ for this beta.
 [Open an issue](https://github.com/mot1us/codex-live-follow/issues). Include:
 
 - Extension version, VS Code version, and operating system.
-- Replay mode and whether your folder is local.
+- Selected view and whether your folder is local.
 - What happened, what you expected, and how to repeat it.
 
 Use throwaway code in examples. Logs and recordings can show your source and paths.

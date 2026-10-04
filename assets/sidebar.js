@@ -2,7 +2,13 @@
 
 (() => {
   const api = acquireVsCodeApi();
-  const element = id => document.getElementById(id);
+  const elements = new Map(Array.from(document.querySelectorAll('[id]'), node => [node.id, node]));
+  const element = id => elements.get(id);
+  const statusCard = document.querySelector('.status-card');
+  const update = (id, property, value) => {
+    const node = element(id);
+    if (node[property] !== value) node[property] = value;
+  };
   let latestState;
   const settings = ['enabled', 'pauseOnInteraction', 'pauseWhenUnfocused', 'ignoreEditorSaves'];
   const send = message => {
@@ -18,7 +24,7 @@
     send({ type: 'setting', key: 'mode', value: event.target.value });
   });
   const speed = element('speed');
-  speed.addEventListener('input', () => { element('speed-value').textContent = `${speed.value} chars/s`; });
+  speed.addEventListener('input', () => update('speed-value', 'textContent', `${speed.value} chars/s`));
   speed.addEventListener('change', () => {
     send({ type: 'setting', key: 'typingCharsPerSecond', value: Number(speed.value) });
   });
@@ -28,36 +34,35 @@
   }
 
   function updateSpeed(state) {
-    speed.value = String(state.speed);
-    element('speed-value').textContent = `${state.speed} chars/s`;
+    update('speed', 'value', String(state.speed));
+    update('speed-value', 'textContent', `${state.speed} chars/s`);
   }
 
   function render(state) {
     latestState = state;
-    element('settings-scope').textContent = state.configurationScope === 'workspace'
-      ? 'Saved for this project.' : 'Saved in your VS Code settings.';
-    document.querySelector('.status-card').dataset.status = state.status;
-    element('status-title').textContent = state.title;
-    element('status-title').title = state.title;
-    element('status-detail').textContent = state.detail;
-    element('status-detail').title = state.detail;
-    element('current-file').hidden = !state.file;
+    update('settings-scope', 'textContent', state.configurationScope === 'workspace'
+      ? 'Saved for this project.' : 'Saved in your VS Code settings.');
+    if (statusCard.dataset.status !== state.status) statusCard.dataset.status = state.status;
+    update('status-title', 'textContent', state.title);
+    update('status-title', 'title', state.title);
+    update('status-detail', 'textContent', state.detail);
+    update('status-detail', 'title', state.detail);
+    update('current-file', 'hidden', !state.file);
     const location = state.file && state.line ? `${state.file}:${state.line}` : state.file;
-    element('current-file').textContent = location;
-    element('current-file').title = location;
-    element('queue').textContent = state.pending
-      ? `${state.pending} ${state.pending === 1 ? 'change' : 'changes'} queued` : 'Nothing queued';
-    element('skip').disabled = !state.canSkip;
-    element('skip').textContent = 'Skip current';
-    element('progress').hidden = state.progress === null;
-    element('progress').value = state.progress ?? 0;
+    update('current-file', 'textContent', location);
+    update('current-file', 'title', location);
+    update('queue', 'textContent', state.pending
+      ? `${state.pending} ${state.pending === 1 ? 'change' : 'changes'} queued` : 'Nothing queued');
+    update('skip', 'disabled', !state.canSkip);
+    update('progress', 'hidden', state.progress === null);
+    update('progress', 'value', state.progress ?? 0);
     for (const key of settings) {
-      element(key).checked = state[key];
-      element(key).disabled = false;
+      update(key, 'checked', state[key]);
+      update(key, 'disabled', false);
     }
-    element('mode').value = state.mode;
-    element('mode').disabled = false;
-    speed.disabled = state.mode !== 'typing';
+    update('mode', 'value', state.mode);
+    update('mode', 'disabled', false);
+    update('speed', 'disabled', state.mode !== 'typing');
     if (document.activeElement !== speed) updateSpeed(state);
   }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.3 — Follow along
+
+- Relaxed the wording in the sidebar, settings, and docs.
+- Replay only splits changed text into characters, reducing allocation for small edits in large files.
+- Sidebar elements are cached and unchanged values are left alone during animation frames.
+- Removed an unused status argument, the legacy packaging shortcut, and stale package entries.
+- Added checks for emoji changes and small edits in large files.
+
 ## 0.7.2 — Keep it simple
 
 - New headline: Watch your agent work.

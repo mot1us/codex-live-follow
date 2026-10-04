@@ -1,7 +1,7 @@
 # Optional inspection setup
 
 Saved edits show up once you enable Live Follow. This setup lets your agent
-show the file and line it's checking during a bug hunt.
+show the file and line it's checking during a code check.
 
 ## Set up a project
 
@@ -33,7 +33,7 @@ project root using an existing source file:
 node scripts/inspect-line.js src/app.js 12 "Checking how this value is calculated"
 ```
 
-Live Follow opens the real file, highlights the line, and shows **Inspecting code**.
+Live Follow opens the real file, highlights the line, and shows **Taking a look**.
 Then ask Codex to check a bug. It can report the locations as it works.
 Saved edits still show up if the agent skips these reports.
 

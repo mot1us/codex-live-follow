@@ -1,11 +1,12 @@
 # Codex Live Follow
 
-**Watch your agent work.**
+**Follow along.**
 
-Files open. Saved edits play back as fast typing. Changed lines light up.
-You can follow along while your agent works through the project.
+See saved edits as they come in. Live Follow brings changed files into view
+and plays back the edits while your agent handles the code.
 
-Pick **Typing replay** or **Follow changed lines**. Pause whenever you want.
+Pick your pace with **Typing replay**, or go straight to **Changed lines**.
+Pause whenever you like.
 
 ## Get it
 
@@ -30,9 +31,9 @@ replace unsaved edits. Other tools that save files can trigger it too.
 The extension runs locally. No AI calls, network requests, or telemetry.
 Codex and VS Code handle their own connections.
 
-## Watch a bug hunt
+## Follow a code check
 
-Want to follow the lines your agent checks? Add the optional
+To see the lines your agent checks, add the optional
 [inspection setup](docs/inspection-setup.md). Visits use locations reported by
 the agent. The helper needs Node.js 18 or newer.
 

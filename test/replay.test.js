@@ -22,3 +22,24 @@ test('keeps Unicode characters intact', () => {
   assert.deepEqual(plan.typed, [' ', '🌱']);
   assert.equal(plan.head + plan.typed.join('') + plan.tail, 'Hello 🌱\n');
 });
+
+test('changing either half of an emoji replays the whole character', () => {
+  for (const [before, after] of [
+    ['😀', '😁'], ['\u{1f600}', '\u{1fa00}'],
+    ['\ud83d', '😀'], ['😀', '\ud83d'], ['\ude00', '😀'], ['😀', '\ude00']
+  ]) {
+    const plan = makeReplayPlan(`a${before}z`, `a${after}z`);
+    assert.equal(plan.head, 'a');
+    assert.deepEqual(plan.typed, Array.from(after));
+    assert.equal(plan.tail, 'z');
+  }
+});
+
+test('small changes in large files keep unchanged text out of the typing sequence', () => {
+  const head = 'a'.repeat(200000);
+  const tail = '🌱'.repeat(40000);
+  const plan = makeReplayPlan(`${head}old${tail}`, `${head}new${tail}`);
+  assert.equal(plan.head, head);
+  assert.deepEqual(plan.typed, ['n', 'e', 'w']);
+  assert.equal(plan.tail, tail);
+});
