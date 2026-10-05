@@ -418,6 +418,8 @@ test('the pending queue drops older files when its count limit is reached', asyn
   for (const uri of uris) mock.write(uri, 'const pending = true;\n', true);
   await settleRead(controller);
   assert.equal(controller.queue.length, 12);
+  assert.equal(controller.getState().skipped, 8);
+  assert.equal(controller.getState().recent.filter(entry => entry.skipped).length, 8);
   assert.deepEqual(controller.queue.map(job => job.uri.toString()), uris.slice(-12).map(uri => uri.toString()));
   assert.equal(mock.shown.length, 0);
 });
@@ -435,4 +437,89 @@ test('the pending queue is bounded by bytes as well as file count', async t => {
   assert.ok(controller.queue.length < uris.length);
   assert.ok(controller.queue.reduce((bytes, job) => bytes + job.bytes, 0) <= 8 * 1024 * 1024);
   assert.equal(controller.queue.at(-1).uri.toString(), uris.at(-1).toString());
+});
+
+test('separated typing frames retain untouched code between edits', async t => {
+  const { mock, controller } = fixture(t, { config: { typingCharsPerSecond: 20 } });
+  const uri = mock.uri('blocks.js');
+  const middle = '// unchanged middle stays visible\n';
+  const before = 'const a = 1;\n' + middle + 'const b = 2;\n';
+  const after = 'const a = 1234;\n' + middle + 'const b = 5678;\n';
+  mock.put(uri, before);
+  await controller.start();
+  mock.write(uri, after);
+  await until(() => mock.frames.some(frame => frame.text === after), 'multi-block edit completes');
+  assert.ok(mock.frames.length > 2);
+  assert.ok(mock.frames.every(frame => frame.text.includes(middle)));
+  assert.equal(mock.files.get(uri.toString()).content, after);
+});
+
+test('recent replay stays read-only and does not restore an older source revision', async t => {
+  const { mock, controller } = fixture(t);
+  const uri = mock.uri('history.js');
+  mock.put(uri, 'const value = 1;\n');
+  await controller.start();
+  mock.write(uri, 'const value = 2;\n');
+  await until(() => controller.history.entries.length === 1 && !controller.playing, 'first edit completes');
+  const old = controller.getState().recent[0].id;
+  mock.write(uri, 'const value = 3;\n');
+  await until(() => controller.history.entries.length === 2 && !controller.playing, 'new edit completes');
+  const priorShown = mock.shown.length;
+  const priorFrames = mock.frames.length;
+  await mock.commands.get('codexLiveFollow.replayRecent')(old);
+  await until(() => mock.frames.length > priorFrames && !controller.playing, 'old edit replays');
+  assert.equal(mock.files.get(uri.toString()).content, 'const value = 3;\n');
+  assert.ok(mock.shown.slice(priorShown).every(item => item.document.uri.scheme === 'codex-live-follow'));
+  assert.ok(mock.frames.slice(priorFrames).some(frame => frame.text === 'const value = 2;\n'));
+  assert.equal(controller.history.entries.length, 2);
+  mock.events.windowState.fire({ focused: false });
+  await mock.commands.get('codexLiveFollow.replayRecent')(old);
+  mock.write(uri, 'const value = 4;\n');
+  await settleRead(controller);
+  assert.equal(controller.queue[0].historical, undefined);
+  assert.equal(controller.queue[0].before, 'const value = 3;\n',
+    'an external save uses the latest disk baseline, not a queued old replay');
+  await mock.commands.get('codexLiveFollow.clearRecent')();
+  assert.equal(controller.getState().recent.length, 0);
+});
+
+test('ignore menu adds a literal exclusion and clears pending playback of that file', async t => {
+  const { mock, controller } = fixture(t);
+  const uri = mock.uri('ignore-me.js');
+  mock.put(uri, 'before');
+  await controller.start();
+  mock.events.windowState.fire({ focused: false });
+  mock.write(uri, 'after');
+  await settleRead(controller);
+  assert.equal(controller.queue.length, 1);
+  await mock.commands.get('codexLiveFollow.ignore')(uri);
+  await until(() => !controller.initializing, 'ignore rescan completes');
+  assert.deepEqual(mock.config.excludeGlobs, ['ignore-me.js']);
+  assert.equal(controller.queue.length, 0);
+  mock.write(uri, 'another change');
+  assert.equal(controller.pendingReads.size, 0);
+  assert.equal(controller.snapshots.has(uri.toString()), false);
+});
+
+test('separate pane is reused and recreated only when its group closes', async t => {
+  const { mock, controller } = fixture(t, { config: { mode: 'follow', replayPane: 'beside' } });
+  await controller.start();
+  const originalShow = mock.vscode.window.showTextDocument;
+  mock.vscode.window.showTextDocument = async (...args) => {
+    const editor = await originalShow(...args);
+    editor.viewColumn = 2;
+    return editor;
+  };
+  mock.vscode.window.tabGroups.all.push({ viewColumn: 2, tabs: [] });
+  for (const name of ['one.js', 'two.js']) {
+    mock.write(mock.uri(name), 'const x = true;\n', true);
+    await until(() => mock.shown.some(item => item.document.uri.path.endsWith(name)) && !controller.playing,
+      'separate pane edit completes');
+  }
+  assert.equal(mock.shown[0].options.viewColumn, mock.vscode.ViewColumn.Beside);
+  assert.equal(mock.shown[1].options.viewColumn, 2);
+  mock.vscode.window.tabGroups.all.pop();
+  mock.write(mock.uri('three.js'), 'const x = true;\n', true);
+  await until(() => mock.shown.length === 3, 'closed pane is recreated');
+  assert.equal(mock.shown[2].options.viewColumn, mock.vscode.ViewColumn.Beside);
 });

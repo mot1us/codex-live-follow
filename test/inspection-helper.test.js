@@ -12,7 +12,7 @@ test('a copied inspection helper works in an unrelated project without repositor
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'live-follow-helper-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const helper = path.join(root, 'inspect-line.js');
-  fs.copyFileSync(path.join(__dirname, '..', 'scripts', 'inspect-line.js'), helper);
+  fs.copyFileSync(path.join(__dirname, '..', 'src', 'inspection-helper.js'), helper);
   fs.writeFileSync(path.join(root, 'demo.js'), 'const broken = false;\n');
   const result = spawnSync(process.execPath,
     [helper, 'demo.js', '1', 'Checking the flag', 'suspect'], { cwd: root, encoding: 'utf8' });
@@ -28,7 +28,7 @@ test('a copied inspection helper works in an unrelated project without repositor
 test('invalid helper arguments produce no activity file', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'live-follow-invalid-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const helper = path.join(__dirname, '..', 'scripts', 'inspect-line.js');
+  const helper = path.join(__dirname, '..', 'src', 'inspection-helper.js');
   for (const args of [['../outside.js', '1', 'Checking'], ['demo.js', '0', 'Checking'],
     ['demo.js', '1', 'Checking', 'execute']]) {
     assert.notEqual(spawnSync(process.execPath, [helper, ...args], { cwd: root }).status, 0);

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- Replay separate changed blocks without retyping the code between them.
+- Add a reusable separate replay pane and bounded, read-only recent edit replay.
+- Show a count when the queue drops older changes during a burst of saves.
+- Add file and folder ignore menus and workspace-relative glob exclusions.
+- Add guided inspection setup with a bundled standalone helper.
+- Update repository links and release guards for the GitHub rename to Specter.
+
 ## 0.8.0 — Specter
 
 - Renamed the extension and controls to Specter.

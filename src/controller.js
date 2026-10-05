@@ -2,7 +2,10 @@
 
 const { createHash } = require('node:crypto');
 const { changedHunks } = require('./diff');
-const { makeReplayPlan } = require('./replay');
+const { makeReplayStages } = require('./replay');
+const { RecentEdits } = require('./history');
+const { compileGlobs, escapeGlob } = require('./ignore');
+const { setupInspection } = require('./setup');
 const { FollowSidebar, VIEW_ID } = require('./sidebar');
 const { InspectionFeed } = require('./inspection');
 
@@ -30,6 +33,9 @@ class LiveFollow {
     this.pendingReads = new Map();
     this.savedByEditor = new Map();
     this.queue = [];
+    this.history = new RecentEdits();
+    this.skipped = 0;
+    this.globCache = new Map();
     this.watchers = [];
     this.disposables = [];
     this.inspections = new InspectionFeed(vscode, event => this.handleInspection(event));
@@ -147,7 +153,11 @@ class LiveFollow {
       speed: this.numberConfig('typingCharsPerSecond', 120, 20, 400),
       pauseOnInteraction: this.config('pauseOnInteraction', true),
       pauseWhenUnfocused: this.config('pauseWhenUnfocused', true),
-      ignoreEditorSaves: this.config('ignoreEditorSaves', true)
+      ignoreEditorSaves: this.config('ignoreEditorSaves', true),
+      replayPane: this.config('replayPane', 'current'),
+      skipped: this.skipped,
+      recent: this.history.entries.map(entry => ({ id: entry.id,
+        file: this.api.workspace.asRelativePath(entry.uri, true), time: entry.time, skipped: entry.skipped }))
     };
   }
 
@@ -205,6 +215,16 @@ class LiveFollow {
     register('setSpeed', () => this.chooseSpeed());
     register('setMode', () => this.chooseMode());
     register('showOutput', () => this.output.show(true));
+    register('ignore', uri => this.ignorePath(uri));
+    register('setupInspection', () => setupInspection(this.api, this.context));
+    register('replayRecent', id => this.replayRecent(id));
+    register('clearRecent', () => {
+      this.history.clear();
+      this.skipped = 0;
+      this.queue = this.queue.filter(job => !job.historical);
+      if (this.currentJob?.historical) this.cancelCurrent();
+      this.updateStatus();
+    });
     register('skipReplay', () => {
       if (this.currentJob) { this.currentJob.skip = true; this.currentJob.wake?.(); }
     });
@@ -216,6 +236,7 @@ class LiveFollow {
         if (!event.affectsConfiguration('codexLiveFollow')) return;
         this.applyConfiguration();
         if (event.affectsConfiguration('codexLiveFollow.excludeDirectories') ||
+          event.affectsConfiguration('codexLiveFollow.excludeGlobs') ||
           event.affectsConfiguration('codexLiveFollow.maxFileSizeKB')) void this.resetWorkspace();
       }),
       workspace.onDidSaveTextDocument(document => {
@@ -322,6 +343,9 @@ class LiveFollow {
     this.savedByEditor.clear();
     this.trackedBytes = 0;
     this.queue.length = 0;
+    this.history.clear();
+    this.skipped = 0;
+    this.globCache.clear();
     this.clearHighlight();
     const folders = [...(this.api.workspace.workspaceFolders || [])];
     this.initializing = folders.length > 0;
@@ -368,11 +392,18 @@ class LiveFollow {
 
   isIgnored(uri) {
     if (uri.scheme === SCHEME || !this.api.workspace.getWorkspaceFolder(uri)) return true;
-    const relative = this.api.workspace.asRelativePath(uri, false).replace(/\\/g, '/');
+    const folder = this.api.workspace.getWorkspaceFolder(uri);
+    const relative = uri.path.slice(folder.uri.path.length + 1);
+    const patterns = this.api.workspace.getConfiguration('codexLiveFollow', uri).get('excludeGlobs', []);
+    const signature = JSON.stringify(patterns);
+    if (!this.globCache.has(signature)) {
+      if (this.globCache.size >= 20) this.globCache.clear();
+      this.globCache.set(signature, compileGlobs(patterns));
+    }
     const extra = this.config('excludeDirectories', []);
     const excluded = Array.isArray(extra) ? extra : [];
     return relative.split('/').some(part => SKIP_DIRECTORIES.has(part) || excluded.includes(part)) ||
-      /\.(vsix|lock)$/i.test(relative);
+      /\.(vsix|lock)$/i.test(relative) || this.globCache.get(signature)(relative);
   }
 
   isDirty(uri) {
@@ -447,14 +478,15 @@ class LiveFollow {
       if (saved) this.savedByEditor.delete(key);
       if (!this.enabled || previous === current || this.isDirty(uri)) return;
       if (this.config('ignoreEditorSaves', true) && saved?.expires > Date.now() && saved.hash === digest(current)) return;
-      const queued = this.queue.find(job => job.kind !== 'inspection' && job.uri.toString() === key);
+      const queued = this.queue.find(job => job.kind !== 'inspection' && !job.historical && job.uri.toString() === key);
       const active = this.currentJob?.uri.toString() === key ? this.currentJob : undefined;
       // Preserve the earliest unseen baseline when multiple writes are coalesced.
-      const before = queued?.before ?? active?.displayedText ?? previous ?? '';
+      const before = queued?.before ?? (active?.historical ? undefined : active?.displayedText) ?? previous ?? '';
       this.queue = this.queue.filter(job => job.uri.toString() !== key);
       if (active) this.cancelCurrent();
       const job = { uri, before, after: current, generation,
         bytes: Buffer.byteLength(before) + Buffer.byteLength(current) };
+      job.historyId = this.history.add(job);
       this.enqueue(job);
     } finally {
       reads.delete(revision);
@@ -478,7 +510,12 @@ class LiveFollow {
   enqueue(job) {
     this.queue.push(job);
     let bytes = this.queue.reduce((sum, pending) => sum + pending.bytes, 0);
-    while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) bytes -= this.queue.shift().bytes;
+    while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) {
+      const dropped = this.queue.shift();
+      bytes -= dropped.bytes;
+      this.skipped++;
+      this.history.markSkipped(dropped.historyId);
+    }
     this.updateStatus();
     void this.playQueue();
   }
@@ -512,9 +549,8 @@ class LiveFollow {
             await this.showChange(job, { start: job.line - 1, end: job.endLine });
             continue;
           }
-          const hunks = changedHunks(job.before, job.after).slice(0, 6);
-          if (this.config('mode', 'typing') === 'typing') await this.playTyping(job, hunks[0]);
-          else for (const hunk of hunks) {
+          if (this.config('mode', 'typing') === 'typing') await this.playTyping(job);
+          else for (const hunk of changedHunks(job.before, job.after).slice(0, 6)) {
             if (!this.valid(job)) break;
             await this.showChange(job, hunk);
           }
@@ -539,9 +575,15 @@ class LiveFollow {
     this.pendingShowUri = document.uri.toString();
     job.presentedUri = this.pendingShowUri;
     try {
+      if (!this.api.window.tabGroups.all.some(group => group.viewColumn === this.replayColumn)) {
+        this.replayColumn = undefined;
+      }
       const editor = await this.api.window.showTextDocument(document, {
-        preview: true, preserveFocus: true, viewColumn: this.api.ViewColumn.One
+        preview: true, preserveFocus: true,
+        viewColumn: this.config('replayPane', 'current') === 'beside'
+          ? this.replayColumn ?? this.api.ViewColumn.Beside : this.api.ViewColumn.Active
       });
+      if (this.config('replayPane', 'current') === 'beside') this.replayColumn = editor.viewColumn;
       if (!this.valid(job) || this.isDirty(job.uri)) return undefined;
       return editor;
     } finally {
@@ -551,23 +593,30 @@ class LiveFollow {
 
   async showChange(job, hunk) {
     if (!this.valid(job) || this.isDirty(job.uri)) return;
-    const document = await this.api.workspace.openTextDocument(job.uri);
-    const editor = await this.present(document, job);
-    if (!editor || !this.valid(job)) return;
-    const last = Math.max(0, document.lineCount - 1);
-    const start = Math.min(hunk?.start ?? 0, last);
-    const end = Math.min(Math.max((hunk?.end ?? 1) - 1, start), last);
-    const range = new this.api.Range(start, 0, end, document.lineAt(end).text.length);
-    this.clearHighlight();
-    editor.revealRange(range, this.api.TextEditorRevealType.InCenterIfOutsideViewport);
-    editor.setDecorations(this.highlight, [range]);
-    this.highlightedEditor = editor;
-    const displayMs = job.kind === 'inspection'
-      ? this.numberConfig('inspectionDisplayMs', 1500, 300, 10000)
-      : this.numberConfig('minimumDisplayMs', 450, 100, 5000);
-    this.highlightTimer = setTimeout(() => this.clearHighlight(),
-      Math.max(displayMs, this.numberConfig('highlightDurationMs', 1400, 250, 10000)));
-    await this.delay(displayMs, job);
+    const uri = job.historical ? job.uri.with({ scheme: SCHEME,
+      query: `history=${++this.replayCounter}`, fragment: '' }) : job.uri;
+    if (job.historical) this.replayContents.set(uri.toString(), job.after);
+    try {
+      const document = await this.api.workspace.openTextDocument(uri);
+      const editor = await this.present(document, job);
+      if (!editor || !this.valid(job)) return;
+      const last = Math.max(0, document.lineCount - 1);
+      const start = Math.min(hunk?.start ?? 0, last);
+      const end = Math.min(Math.max((hunk?.end ?? 1) - 1, start), last);
+      const range = new this.api.Range(start, 0, end, document.lineAt(end).text.length);
+      this.clearHighlight();
+      editor.revealRange(range, this.api.TextEditorRevealType.InCenterIfOutsideViewport);
+      editor.setDecorations(this.highlight, [range]);
+      this.highlightedEditor = editor;
+      const displayMs = job.kind === 'inspection'
+        ? this.numberConfig('inspectionDisplayMs', 1500, 300, 10000)
+        : this.numberConfig('minimumDisplayMs', 450, 100, 5000);
+      this.highlightTimer = setTimeout(() => this.clearHighlight(),
+        Math.max(displayMs, this.numberConfig('highlightDurationMs', 1400, 250, 10000)));
+      await this.delay(displayMs, job);
+    } finally {
+      if (job.historical) await this.closeReplay(uri);
+    }
   }
 
   async closeReplay(uri) {
@@ -585,19 +634,23 @@ class LiveFollow {
     }
   }
 
-  async playTyping(job, hunk) {
+  async playTyping(job) {
     if (!this.valid(job) || this.isDirty(job.uri)) return;
-    const plan = makeReplayPlan(job.before, job.after);
-    if (!plan.typed.length || plan.typed.length > this.numberConfig('maxReplayCharacters', 20000, 100, 100000) ||
-      this.replayContents.size >= 8) {
-      if (plan.typed.length) this.log('Change exceeds replay limits; showing changed lines directly.');
-      await this.showChange(job, hunk);
+    const stages = makeReplayStages(job.before, job.after);
+    const count = stages.reduce((sum, stage) => sum + stage.typed.length, 0);
+    if (!count || stages.some(stage => stage.coarse) ||
+      count > this.numberConfig('maxReplayCharacters', 20000, 100, 100000) || this.replayContents.size >= 8) {
+      if (count) this.log('Change exceeds replay limits; showing changed lines directly.');
+      for (const { hunk: changed } of stages.slice(0, 6)) {
+        if (!this.valid(job) || job.skip) break;
+        await this.showChange(job, changed);
+      }
       return;
     }
     const uri = job.uri.with({ scheme: SCHEME, query: `replay=${++this.replayCounter}`, fragment: '' });
     const key = uri.toString();
-    this.replayContents.set(key, plan.head + plan.tail);
-    job.displayedText = plan.head + plan.tail;
+    job.displayedText = job.before;
+    this.replayContents.set(key, job.before);
     try {
       this.clearHighlight();
       const document = await this.api.workspace.openTextDocument(uri);
@@ -606,47 +659,95 @@ class LiveFollow {
       job.progress = 0;
       this.updateStatus();
       const rate = Math.max(this.numberConfig('typingCharsPerSecond', 120, 20, 400),
-        plan.typed.length * 1000 / this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000));
+        count * 1000 / this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000));
       const started = Date.now() - FRAME_MS;
-      let written = plan.head;
-      let index = 0;
-      const headLines = plan.head.split('\n');
-      let line = headLines.length - 1;
-      let column = headLines[line].length;
-      while (index < plan.typed.length && this.valid(job) && !job.skip) {
-        const next = Math.min(plan.typed.length, Math.max(index + 1, Math.floor((Date.now() - started) * rate / 1000)));
-        const chunk = plan.typed.slice(index, next).join('');
-        const lines = chunk.split('\n');
-        if (lines.length > 1) { line += lines.length - 1; column = lines[lines.length - 1].length; }
-        else column += chunk.length;
-        written += chunk;
-        index = next;
-        job.progress = Math.floor(index * 100 / plan.typed.length);
-        this.stateEmitter.fire();
-        job.displayedText = written + plan.tail;
+      let completed = 0;
+      for (const stage of stages) {
+        if (!this.valid(job) || job.skip) break;
+        const head = job.displayedText.slice(0, stage.start);
+        const tail = job.displayedText.slice(stage.start + stage.deleteCount);
+        let written = head;
+        let index = 0;
+        const headLines = head.split('\n');
+        let line = headLines.length - 1;
+        let column = headLines[line].length;
+        // Deletions also produce a frame; untouched blocks stay in place throughout.
+        job.displayedText = written + tail;
         this.replayContents.set(key, job.displayedText);
         this.replayEmitter.fire(uri);
-        // Virtual documents refresh asynchronously. Clamp the cursor to the current model.
-        const visibleLine = Math.min(line, document.lineCount - 1);
-        const visibleColumn = Math.min(column, document.lineAt(visibleLine).text.length);
-        editor.selection = new this.api.Selection(visibleLine, visibleColumn, visibleLine, visibleColumn);
-        editor.revealRange(new this.api.Range(visibleLine, visibleColumn, visibleLine, visibleColumn),
-          this.api.TextEditorRevealType.InCenterIfOutsideViewport);
-        if (index < plan.typed.length) await this.delay(FRAME_MS, job);
+        do {
+          const target = Math.floor((Date.now() - started) * rate / 1000) - completed;
+          const next = Math.min(stage.typed.length, Math.max(index + 1, target));
+          const chunk = stage.typed.slice(index, next).join('');
+          const lines = chunk.split('\n');
+          if (lines.length > 1) { line += lines.length - 1; column = lines.at(-1).length; }
+          else column += chunk.length;
+          written += chunk;
+          index = next;
+          job.progress = Math.floor((completed + index) * 100 / count);
+          job.displayedText = written + tail;
+          this.replayContents.set(key, job.displayedText);
+          this.replayEmitter.fire(uri);
+          this.stateEmitter.fire();
+          const visibleLine = Math.min(line, document.lineCount - 1);
+          const visibleColumn = Math.min(column, document.lineAt(visibleLine).text.length);
+          editor.selection = new this.api.Selection(visibleLine, visibleColumn, visibleLine, visibleColumn);
+          editor.revealRange(new this.api.Range(visibleLine, visibleColumn, visibleLine, visibleColumn),
+            this.api.TextEditorRevealType.InCenterIfOutsideViewport);
+          if (index < stage.typed.length) await this.delay(FRAME_MS, job);
+        } while (index < stage.typed.length && this.valid(job) && !job.skip);
+        completed += stage.typed.length;
       }
       if (this.valid(job)) {
+        job.displayedText = job.after;
         job.progress = 100;
-        this.updateStatus();
         this.replayContents.set(key, job.after);
         this.replayEmitter.fire(uri);
+        this.updateStatus();
         await this.delay(150, job);
-        await this.showChange(job, hunk);
+        if (job.historical) await this.delay(this.numberConfig('minimumDisplayMs', 450, 100, 5000), job);
+        else await this.showChange(job, stages[0]?.hunk);
       }
     } finally {
-      // Never leave an incomplete read-only document behind when the user takes over.
-      this.replayContents.set(key, this.snapshots.get(job.uri.toString()) ?? job.after);
+      // A historical replay is a read-only snapshot, never a restore operation.
+      this.replayContents.set(key, job.historical ? job.after : this.snapshots.get(job.uri.toString()) ?? job.after);
       if (!this.disposed) this.replayEmitter.fire(uri);
       await this.closeReplay(uri);
+    }
+  }
+
+  async replayRecent(id) {
+    if (id === undefined) {
+      const selected = await this.api.window.showQuickPick(this.history.entries.map(entry => ({
+        label: this.api.workspace.asRelativePath(entry.uri, true),
+        description: new Date(entry.time).toLocaleTimeString(), id: entry.id
+      })), { title: 'Specter: Replay a recent edit' });
+      id = selected?.id;
+    }
+    const entry = typeof id === 'string' && this.history.get(id);
+    if (!entry || !this.enabled || this.isDirty(entry.uri) || this.isIgnored(entry.uri)) return;
+    this.enqueue({ uri: entry.uri, before: entry.before, after: entry.after,
+      bytes: entry.bytes, generation: this.generation, historical: true });
+  }
+
+  async ignorePath(uri) {
+    uri ||= this.api.window.activeTextEditor?.document.uri;
+    if (!uri || uri.scheme !== 'file') return;
+    const folder = this.api.workspace.getWorkspaceFolder(uri);
+    if (!folder) return;
+    const relative = uri.path.slice(folder.uri.path.length + 1);
+    if (!relative) return;
+    const stat = await this.api.workspace.fs.stat(uri);
+    const pattern = escapeGlob(relative) + (stat.type & this.api.FileType.Directory ? '/**' : '');
+    const config = this.api.workspace.getConfiguration('codexLiveFollow', uri);
+    const existing = config.get('excludeGlobs', []);
+    const patterns = Array.isArray(existing) ? existing : [];
+    if (!patterns.includes(pattern)) {
+      if (patterns.length >= 200) {
+        await this.api.window.showInformationMessage('The ignore list is full. Remove an entry in Specter settings first.');
+        return;
+      }
+      await config.update('excludeGlobs', [...patterns, pattern], this.api.ConfigurationTarget.WorkspaceFolder);
     }
   }
 
@@ -681,6 +782,8 @@ class LiveFollow {
     this.pendingReads.clear();
     this.queue.length = 0;
     this.snapshots.clear();
+    this.history.clear();
+    this.globCache.clear();
     this.trackedBytes = 0;
     this.revisions.clear();
     this.reading.clear();

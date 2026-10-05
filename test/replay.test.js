@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { makeReplayPlan } = require('../src/replay');
+const { makeReplayPlan, makeReplayStages } = require('../src/replay');
 
 test('replays a new file from empty content', () => {
   assert.deepEqual(makeReplayPlan('', '<h1>Hi</h1>'), {
@@ -42,4 +42,49 @@ test('small changes in large files keep unchanged text out of the typing sequenc
   assert.equal(plan.head, head);
   assert.deepEqual(plan.typed, ['n', 'e', 'w']);
   assert.equal(plan.tail, tail);
+});
+
+test('separate blocks never type or remove the unchanged lines between them', () => {
+  const before = 'const a = 1;\n// keep this exact line\nconst b = 2;\n';
+  const after = 'const a = 42;\n// keep this exact line\nconst b = 99;\n';
+  const stages = makeReplayStages(before, after);
+  assert.equal(stages.length, 2);
+  assert.equal(stages.flatMap(stage => stage.typed).join(''), '4299');
+  let text = before;
+  for (const stage of stages) {
+    const head = text.slice(0, stage.start);
+    const tail = text.slice(stage.start + stage.deleteCount);
+    for (let i = 0; i <= stage.typed.length; i++) {
+      text = head + stage.typed.slice(0, i).join('') + tail;
+      assert.ok(text.includes('// keep this exact line\n'));
+    }
+  }
+  assert.equal(text, after);
+});
+
+test('block offsets reconstruct insertions, deletions, CRLF, Unicode, and bounded fallback', () => {
+  const cases = [
+    ['a\nb\nc\nd\n', 'a\ninsert\nb\nc\nD\n'],
+    ['a\nb\nc\nd\n', 'a\nc\nD\n'],
+    ['a\r\nb\r\nc\r\n', 'A🌱\r\nb\r\nC😀\r\n'],
+    ['a\r\nb\n', 'a\nb\r\n'], ['', 'hello\n'], ['hello\n', ''],
+    ['😀\nsame\n😁', '😁\nsame\n😀']
+  ];
+  // Many repeated lines exercise ambiguous LCS matches and changing offsets.
+  for (let i = 0; i < 100; i++) {
+    const lines = Array.from({ length: 20 }, (_, j) => `${(i + j * 7) % 9}\n`);
+    const changed = [...lines];
+    changed.splice(i % 20, i % 4, 'new\n', '🌱\n');
+    changed[(i + 11) % changed.length] = 'changed\n';
+    cases.push([lines.join(''), changed.join('')]);
+  }
+  cases.push(['old\n'.repeat(500), 'new\n'.repeat(500)]);
+  for (const [before, after] of cases) {
+    let text = before;
+    for (const stage of makeReplayStages(before, after)) {
+      text = text.slice(0, stage.start) + stage.typed.join('') + text.slice(stage.start + stage.deleteCount);
+    }
+    assert.equal(text, after);
+  }
+  assert.ok(makeReplayStages(cases.at(-1)[0], cases.at(-1)[1])[0].coarse);
 });

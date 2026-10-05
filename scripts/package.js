@@ -21,7 +21,7 @@ async function main() {
   const digest = createHash('sha256').update(await fs.readFile(packagePath)).digest('hex');
   await fs.writeFile(`${packagePath}.sha256`, `${digest}  ${filename}\n`);
   const helper = 'inspect-line.js';
-  await fs.copyFile(path.join(root, 'scripts', helper), path.join(output, helper));
+  await fs.copyFile(path.join(root, 'src', 'inspection-helper.js'), path.join(output, helper));
   const helperDigest = createHash('sha256').update(await fs.readFile(path.join(output, helper))).digest('hex');
   await fs.writeFile(path.join(output, `${helper}.sha256`), `${helperDigest}  ${helper}\n`);
   await fs.copyFile(path.join(root, 'docs', 'inspection-setup.md'), path.join(output, 'inspection-setup.md'));

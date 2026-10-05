@@ -1,5 +1,7 @@
 'use strict';
 
+const { changedBlocks } = require('./diff');
+
 function insideSurrogatePair(text, index) {
   const head = text.charCodeAt(index - 1);
   const tail = text.charCodeAt(index);
@@ -33,4 +35,18 @@ function makeReplayPlan(before, after) {
   };
 }
 
-module.exports = { makeReplayPlan };
+function makeReplayStages(before, after) {
+  return changedBlocks(before, after).map(block => {
+    const old = before.slice(block.oldStart, block.oldEnd);
+    const plan = makeReplayPlan(old, after.slice(block.newStart, block.newEnd));
+    return {
+      start: block.newStart + plan.head.length,
+      deleteCount: old.length - plan.head.length - plan.tail.length,
+      typed: plan.typed,
+      hunk: { start: block.start, end: block.end },
+      coarse: block.coarse
+    };
+  });
+}
+
+module.exports = { makeReplayPlan, makeReplayStages };

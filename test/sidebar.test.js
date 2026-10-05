@@ -42,6 +42,8 @@ test('sidebar controls persist settings and stay in sync with commands and Setti
   await mock.commands.get('codexLiveFollow.resume')();
   assert.equal(messages.at(-1).state.enabled, true);
   await sidebar.handleMessage({ type: 'setting', key: 'mode', value: 'follow' });
+  await sidebar.handleMessage({ type: 'setting', key: 'replayPane', value: 'beside' });
+  assert.equal(messages.at(-1).state.replayPane, 'beside');
   await sidebar.handleMessage({ type: 'setting', key: 'typingCharsPerSecond', value: 240 });
   await sidebar.handleMessage({ type: 'setting', key: 'pauseOnInteraction', value: false });
   assert.equal(mock.config.mode, 'follow');
@@ -57,6 +59,8 @@ test('sidebar rejects unknown settings, malformed values, and arbitrary commands
   for (const message of [
     null, { type: 'setting', key: 'enabled', value: 'false' },
     { type: 'setting', key: 'mode', value: 'execute' },
+    { type: 'setting', key: 'replayPane', value: 'execute' },
+    { type: 'action', action: 'replay', id: '../source.js' },
     { type: 'setting', key: 'typingCharsPerSecond', value: 401 },
     { type: 'setting', key: 'typingCharsPerSecond', value: NaN },
     { type: 'setting', key: 'maxFileSizeKB', value: 9999 },

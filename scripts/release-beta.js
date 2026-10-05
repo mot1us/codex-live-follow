@@ -9,7 +9,7 @@ function releaseBeta(options = {}) {
   const env = options.env || process.env;
   const repository = env.GITHUB_REPOSITORY;
   const commit = env.GITHUB_SHA;
-  if (repository !== 'mot1us/codex-live-follow' || !/^[a-f0-9]{40}$/.test(commit || '') ||
+  if (repository !== 'mot1us/specter' || !/^[a-f0-9]{40}$/.test(commit || '') ||
       env.GITHUB_EVENT_NAME !== 'push' || env.GITHUB_REF !== 'refs/heads/main') {
     throw new Error('Beta releases run only in the repository workflow at an exact commit.');
   }

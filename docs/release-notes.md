@@ -11,9 +11,13 @@ This is beta for now! Let me know if you find any issues.
 
 ### This update
 
-- Renamed Codex Live Follow to Specter.
-- Rewrote the description and removed the tagline.
-- Same extension ID and settings, so this updates your existing beta install.
+- Separate changes replay one block at a time, leaving the code between them alone.
+- Keep replay in a separate pane beside your code.
+- Replay a missed edit from the recent list. It stays read-only and never restores old code.
+- See when older queued changes are skipped during a burst of saves.
+- Right-click a file or folder to ignore it. Glob exclusions are in settings.
+- Set up optional inspection reports from the sidebar.
+- Updated GitHub links and automatic releases for the repository rename.
 
 ### Install
 
@@ -33,10 +37,11 @@ or replace unsaved edits. Other tools that save files can trigger it too.
 The extension runs locally. No AI calls, network requests, telemetry, or API key.
 Codex and VS Code handle their own connections.
 
-To see which lines your agent is checking, download `inspect-line.js` and
-`inspection-setup.md` below. The agent has to report those locations; Specter
+To see which lines your agent is checking, click **Set up inspections** in the
+sidebar, or download `inspect-line.js` and `inspection-setup.md` below. The agent has to report those locations; Specter
 can't see them on its own. The helper needs Node.js 18 or newer.
-Saved edit replay works without this setup.
+Saved edit replay works without this setup. Recent edits hold up to 20 edits or
+4 MB in memory; clearing, reloading, or rescanning removes them.
 
 ### Updates
 
@@ -47,7 +52,7 @@ Specter keeps the `mot1us.codex-live-follow` ID so this installs over the existi
 beta. Marketplace publisher registration is pending.
 The SHA-256 files check download integrity; they're not Marketplace signatures.
 
-[Report a bug](https://github.com/mot1us/codex-live-follow/issues) or
-[try the beta checklist](https://github.com/mot1us/codex-live-follow/blob/main/docs/beta-testing.md).
+[Report a bug](https://github.com/mot1us/specter/issues) or
+[try the beta checklist](https://github.com/mot1us/specter/blob/main/docs/beta-testing.md).
 
 Free. Open source. MIT licensed. Unofficial; not affiliated with OpenAI.

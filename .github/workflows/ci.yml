@@ -103,7 +103,7 @@ jobs:
   release:
     name: GitHub beta release
     needs: package
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'mot1us/codex-live-follow'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'mot1us/specter'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

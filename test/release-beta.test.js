@@ -9,7 +9,7 @@ const { releaseBeta } = require('../scripts/release-beta');
 const manifest = require('../package.json');
 
 const env = {
-  GITHUB_REPOSITORY: 'mot1us/codex-live-follow',
+  GITHUB_REPOSITORY: 'mot1us/specter',
   GITHUB_SHA: 'a'.repeat(40), GITHUB_EVENT_NAME: 'push', GITHUB_REF: 'refs/heads/main'
 };
 const missingRelease = { status: 1, stderr: 'release not found' };

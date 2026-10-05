@@ -59,6 +59,7 @@ class FollowSidebar {
       const { key, value } = message;
       const valid = (BOOLEAN_SETTINGS.has(key) && typeof value === 'boolean') ||
         (key === 'mode' && (value === 'typing' || value === 'follow')) ||
+        (key === 'replayPane' && (value === 'current' || value === 'beside')) ||
         (key === 'typingCharsPerSecond' && typeof value === 'number' &&
           Number.isFinite(value) && value >= 20 && value <= 400);
       if (!valid) return;
@@ -69,6 +70,11 @@ class FollowSidebar {
       if (message.action === 'skip') await this.api.commands.executeCommand('codexLiveFollow.skipReplay');
       else if (message.action === 'output') await this.api.commands.executeCommand('codexLiveFollow.showOutput');
       else if (message.action === 'settings') await this.api.commands.executeCommand('codexLiveFollow.settings');
+      else if (message.action === 'setup') await this.api.commands.executeCommand('codexLiveFollow.setupInspection');
+      else if (message.action === 'clear') await this.api.commands.executeCommand('codexLiveFollow.clearRecent');
+      else if (message.action === 'replay' && typeof message.id === 'string' && /^\d{1,16}$/.test(message.id)) {
+        await this.api.commands.executeCommand('codexLiveFollow.replayRecent', message.id);
+      }
       else return;
     } else return;
     this.publish();
@@ -112,11 +118,13 @@ class FollowSidebar {
       <p id="current-file" class="file" hidden></p>
       <progress id="progress" max="100" value="0" aria-label="Typing replay progress" hidden></progress>
       <div class="queue-row"><span id="queue">Nothing queued</span><button id="skip" class="text-button" disabled>Skip current</button></div>
+      <p id="skipped" class="hint skipped" aria-live="polite"></p>
     </section>
 
     <section class="controls" aria-label="Playback controls">
       <div class="toggle-row"><div><label for="enabled" class="control-label">Replay edits</label><p>Turn off to pause.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
       <div class="field"><label class="control-label" for="mode">Show edits as</label><select id="mode" disabled><option value="typing">Typing replay</option><option value="follow">Changed lines</option></select></div>
+      <div class="field"><label class="control-label" for="replayPane">Open edits in</label><select id="replayPane" disabled><option value="current">Current pane</option><option value="beside">Separate pane</option></select></div>
       <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Slow</span><span>Fast</span></div><p class="hint">Mode and speed apply to the next replay.</p></div>
     </section>
 
@@ -128,6 +136,17 @@ class FollowSidebar {
     </section>
 
     <p id="error" role="alert" hidden></p>
+    <section class="recent" aria-labelledby="recent-title">
+      <div class="label-row"><h2 id="recent-title">Recent edits</h2><button id="clear" class="text-button" disabled>Clear</button></div>
+      <p class="hint">Missed one? Replay it here. Previews don't change your files.</p>
+      <p id="recent-empty" class="hint">Nothing yet.</p>
+      <ul id="recent-list" aria-label="Recent saved edits"></ul>
+    </section>
+    <section class="inspections" aria-labelledby="inspection-title">
+      <h2 id="inspection-title">Inspections</h2>
+      <p class="hint">Show the lines your agent checks while fixing a bug. Needs project instructions.</p>
+      <button id="setup" class="secondary-button">Set up inspections</button>
+    </section>
     <footer><button id="settings" class="secondary-button">Settings</button><button id="output" class="text-button">Logs</button><p id="settings-scope">Saved for this project.</p></footer>
   </main>
   <script nonce="${nonce}" src="${script}"></script>

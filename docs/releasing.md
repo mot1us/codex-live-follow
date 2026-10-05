@@ -1,7 +1,7 @@
 # Releasing
 
 The source and downloadable beta live in
-[mot1us/codex-live-follow](https://github.com/mot1us/codex-live-follow).
+[mot1us/specter](https://github.com/mot1us/specter).
 GitHub releases are public prereleases with a VSIX installer, checksums, and the
 optional inspection helper. Installing the viewer requires no build tools or API key.
 
@@ -39,8 +39,8 @@ Same-identity beta updates are installed manually from newer VSIX files.
 6. Once those gates pass, the release job uses its temporary `GITHUB_TOKEN`
    with `contents: write` to publish a public prerelease tagged `v<version>` at
    the tested commit. No publication credential or personal token is committed.
-7. Check the [workflow results](https://github.com/mot1us/codex-live-follow/actions)
-   and [release](https://github.com/mot1us/codex-live-follow/releases). Confirm its
+7. Check the [workflow results](https://github.com/mot1us/specter/actions)
+   and [release](https://github.com/mot1us/specter/releases). Confirm its
    tag, installer, both checksum files, helper, and setup instructions are present.
 
 The release job only publishes pushes to this repository's `main` branch. Pull

@@ -27,7 +27,7 @@ async function run() {
   for (const [key, value] of Object.entries({
     enabled: true, pauseOnInteraction: true, pauseWhenUnfocused: false, idleDelayMs: 500,
     ignoreEditorSaves: true, typingCharsPerSecond: 400, maxReplayDurationMs: 1000,
-    minimumDisplayMs: 100, inspectionDisplayMs: 10000, mode: 'typing'
+    minimumDisplayMs: 100, inspectionDisplayMs: 10000, mode: 'typing', replayPane: 'beside'
   })) await config.update(key, value, vscode.ConfigurationTarget.Workspace);
   const startingDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(__dirname, '..', 'src', 'extension.js')));
   await vscode.window.showTextDocument(startingDocument, { preview: false });
@@ -61,6 +61,29 @@ async function run() {
       source: source.toString(), replayTabs: previewTabs().length
     }));
     console.log('PASS real watcher → virtual typing frames → real file; disk untouched');
+    assert.equal(vscode.window.tabGroups.all.length, 2, 'one separate pane is created');
+    assert.ok(vscode.window.visibleTextEditors.some(editor =>
+      editor.document.uri.toString() === startingDocument.uri.toString()), 'original file remains visible');
+    const editedLines = text.split('\n');
+    editedLines[2] += ' // first change';
+    editedLines[25] += ' // second change';
+    const updated = editedLines.join('\n');
+    const editFrameStart = frames.length;
+    await fs.writeFile(source.fsPath, updated);
+    await until(() => frames.slice(editFrameStart).some(frame => frame.replace(/\r\n/g, '\n') === updated) &&
+      previewTabs().length === 0 && api.getState().status === 'watching', 'separated edit replay completes');
+    assert.ok(frames.slice(editFrameStart).every(frame => frame.includes(editedLines[10])),
+      'unchanged middle stays in every frame');
+    assert.equal(vscode.window.tabGroups.all.length, 2, 'separate pane is reused');
+    const oldId = api.getState().recent.at(-1).id;
+    const historicalFrames = frames.length;
+    await vscode.commands.executeCommand('codexLiveFollow.replayRecent', oldId);
+    await until(() => frames.slice(historicalFrames).some(frame => frame.replace(/\r\n/g, '\n') === text) &&
+      previewTabs().length === 0 && api.getState().status === 'watching', 'historical replay completes');
+    assert.equal(await fs.readFile(source.fsPath, 'utf8'), updated, 'old replay never restores disk');
+    await vscode.commands.executeCommand('codexLiveFollow.clearRecent');
+    assert.equal(api.getState().recent.length, 0);
+    console.log('PASS separate pane, separated blocks, and read-only recent replay');
 
     const activity = path.join(root, '.codex-live-follow', 'activity.json');
     await fs.mkdir(path.dirname(activity), { recursive: true });
@@ -77,7 +100,7 @@ async function run() {
       editor.visibleRanges.some(range => range.start.line <= 19 && range.end.line >= 19)),
     'reported line is visible in the real editor');
     assert.equal(frames.length, beforeInspection, 'inspections do not type or modify source');
-    assert.equal(await fs.readFile(source.fsPath, 'utf8'), text);
+    assert.equal(await fs.readFile(source.fsPath, 'utf8'), updated);
     await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
     await until(() => api.getState().status === 'watching', 'inspection skips promptly');
     console.log('PASS local inspection → real source line and sidebar; source untouched');
@@ -85,7 +108,7 @@ async function run() {
     await vscode.commands.executeCommand('codexLiveFollow.pause');
     assert.equal(vscode.workspace.getConfiguration('codexLiveFollow').get('enabled'), false);
     const priorFrames = frames.length;
-    const pausedText = text + '// saved while following is paused\n';
+    const pausedText = updated + '// saved while following is paused\n';
     await fs.writeFile(source.fsPath, pausedText);
     await new Promise(resolve => setTimeout(resolve, 350));
     assert.equal(frames.length, priorFrames, 'paused file writes do not replay');
@@ -115,6 +138,18 @@ async function run() {
     await new Promise(resolve => setTimeout(resolve, 350));
     assert.equal(frames.length, beforeDirtyWrite, 'normal editor saves do not replay');
     console.log('PASS dirty-editor protection and editor-save suppression');
+    const ignored = vscode.Uri.file(path.join(root, 'ignored.js'));
+    await fs.writeFile(ignored.fsPath, '// baseline\n');
+    await new Promise(resolve => setTimeout(resolve, 400));
+    await vscode.commands.executeCommand('codexLiveFollow.ignore', ignored);
+    await until(() => api.getState().status !== 'preparing', 'ignore rule rescans the project');
+    assert.ok(vscode.workspace.getConfiguration('codexLiveFollow', ignored).get('excludeGlobs').includes('ignored.js'));
+    const beforeIgnored = api.getState().recent.length;
+    await fs.writeFile(ignored.fsPath, '// ignored update\n');
+    await new Promise(resolve => setTimeout(resolve, 350));
+    assert.equal(api.getState().recent.length, beforeIgnored, 'ignored writes do not enter recent edits');
+    assert.ok(await fs.readFile(path.join(extension.extensionPath, 'src', 'inspection-helper.js'), 'utf8'));
+    console.log('PASS real ignore command and packaged inspection helper');
   } finally {
     subscription.dispose();
     await vscode.commands.executeCommand('codexLiveFollow.pause');
