@@ -85,6 +85,44 @@ async function run() {
     assert.equal(api.getState().recent.length, 0);
     console.log('PASS separate pane, separated blocks, and read-only recent replay');
 
+    const speedSource = vscode.Uri.file(path.join(root, 'speed-host-test.txt'));
+    const speedFrames = [];
+    const speedSubscription = vscode.workspace.onDidChangeTextDocument(event => {
+      if (event.document.uri.scheme === 'codex-live-follow' && event.document.uri.path === speedSource.path) {
+        speedFrames.push(event.document.getText().length);
+      }
+    });
+    try {
+      await config.update('maxReplayDurationMs', 5000, vscode.ConfigurationTarget.Workspace);
+      await config.update('typingCharsPerSecond', 20, vscode.ConfigurationTarget.Workspace);
+      await fs.writeFile(speedSource.fsPath, 'x'.repeat(2000));
+      await until(() => speedFrames.some(length => length > 0), 'slow speed replay starts');
+      const sample = async () => {
+        const started = Date.now();
+        const before = speedFrames.at(-1);
+        await new Promise(resolve => setTimeout(resolve, 350));
+        return { chars: speedFrames.at(-1) - before, elapsed: Date.now() - started };
+      };
+      const slow = await sample();
+      assert.ok(slow.chars <= Math.ceil(slow.elapsed * 20 / 1000) + 25, 'slow speed is honored for a large edit');
+      await config.update('typingCharsPerSecond', 400, vscode.ConfigurationTarget.Workspace);
+      const fast = await sample();
+      assert.ok(fast.chars >= 70, 'increasing speed changes the same running replay');
+      assert.ok(fast.chars <= Math.ceil(fast.elapsed * 400 / 1000) + 25, 'speed change does not jump through past time');
+      await config.update('typingCharsPerSecond', 20, vscode.ConfigurationTarget.Workspace);
+      const slowerAgain = await sample();
+      assert.ok(slowerAgain.chars <= Math.ceil(slowerAgain.elapsed * 20 / 1000) + 25,
+        'decreasing speed changes the same running replay');
+      await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
+      await until(() => previewTabs().length === 0 && api.getState().status === 'watching', 'speed test cleanup');
+      assert.equal(await fs.readFile(speedSource.fsPath, 'utf8'), 'x'.repeat(2000));
+      console.log('PASS slow → fast → slow speed changes during one real replay; disk untouched');
+    } finally {
+      speedSubscription.dispose();
+      await config.update('typingCharsPerSecond', 400, vscode.ConfigurationTarget.Workspace);
+      await config.update('maxReplayDurationMs', 1000, vscode.ConfigurationTarget.Workspace);
+    }
+
     const activity = path.join(root, '.codex-live-follow', 'activity.json');
     await fs.mkdir(path.dirname(activity), { recursive: true });
     const beforeInspection = frames.length;

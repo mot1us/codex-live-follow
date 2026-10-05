@@ -11,13 +11,10 @@ This is beta for now! Let me know if you find any issues.
 
 ### This update
 
-- Separate changes replay one block at a time, leaving the code between them alone.
-- Keep replay in a separate pane beside your code.
-- Replay a missed edit from the recent list. It stays read-only and never restores old code.
-- See when older queued changes are skipped during a burst of saves.
-- Right-click a file or folder to ignore it. Glob exclusions are in settings.
-- Set up optional inspection reports from the sidebar.
-- Updated GitHub links and automatic releases for the repository rename.
+- Fixed the typing speed slider. It updates the running replay while you drag.
+- Long edits keep your chosen speed instead of silently speeding up.
+- At the replay time limit, the complete saved file is shown. The default is
+  12 seconds; increase Max Replay Duration in settings for longer playback.
 
 ### Install
 

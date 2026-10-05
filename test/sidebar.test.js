@@ -63,10 +63,25 @@ test('sidebar rejects unknown settings, malformed values, and arbitrary commands
     { type: 'action', action: 'replay', id: '../source.js' },
     { type: 'setting', key: 'typingCharsPerSecond', value: 401 },
     { type: 'setting', key: 'typingCharsPerSecond', value: NaN },
+    { type: 'speedPreview', value: 401 }, { type: 'speedPreview', value: '20' },
     { type: 'setting', key: 'maxFileSizeKB', value: 9999 },
     { type: 'action', action: 'workbench.action.files.save' }
   ]) await sidebar.handleMessage(message);
   assert.deepEqual(mock.config, before);
+});
+
+test('slider drag previews speed without settings writes, then release saves it', async t => {
+  const { mock, controller, sidebar, messages, view, visibility } = await setup(t);
+  await sidebar.handleMessage({ type: 'speedPreview', value: 20 });
+  assert.equal(messages.at(-1).state.speed, 20);
+  assert.equal(mock.config.typingCharsPerSecond, 400, 'dragging does not write settings on every event');
+  await sidebar.handleMessage({ type: 'setting', key: 'typingCharsPerSecond', value: 20 });
+  assert.equal(mock.config.typingCharsPerSecond, 20);
+  assert.equal(controller.liveSpeed, undefined);
+  await sidebar.handleMessage({ type: 'speedPreview', value: 240 });
+  view.visible = false;
+  visibility.fire();
+  assert.equal(controller.typingSpeed(), 20, 'hiding controls clears an uncommitted drag');
 });
 
 test('live sidebar tracks typing, skip, queued writes, and background waiting', async t => {

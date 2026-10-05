@@ -34,7 +34,7 @@ class FollowSidebar {
         });
       }),
       view.onDidChangeVisibility(() => {
-        if (!view.visible) this.ready = false;
+        if (!view.visible) { this.ready = false; this.controller.clearSpeedPreview(); }
         this.lastState = undefined;
         this.publish();
       }),
@@ -53,6 +53,10 @@ class FollowSidebar {
       this.ready = true;
       this.lastState = undefined;
       this.publish();
+      return;
+    }
+    if (message.type === 'speedPreview') {
+      this.controller.previewSpeed(message.value);
       return;
     }
     if (message.type === 'setting') {
@@ -125,7 +129,7 @@ class FollowSidebar {
       <div class="toggle-row"><div><label for="enabled" class="control-label">Replay edits</label><p>Turn off to pause.</p></div><input id="enabled" type="checkbox" role="switch" disabled></div>
       <div class="field"><label class="control-label" for="mode">Show edits as</label><select id="mode" disabled><option value="typing">Typing replay</option><option value="follow">Changed lines</option></select></div>
       <div class="field"><label class="control-label" for="replayPane">Open edits in</label><select id="replayPane" disabled><option value="current">Current pane</option><option value="beside">Separate pane</option></select></div>
-      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Slow</span><span>Fast</span></div><p class="hint">Mode and speed apply to the next replay.</p></div>
+      <div class="field"><div class="label-row"><label class="control-label" for="speed">Typing speed</label><output id="speed-value" for="speed">120 chars/s</output></div><input id="speed" type="range" min="20" max="400" step="1" value="120" disabled><div class="scale"><span>Slow</span><span>Fast</span></div><p class="hint">Speed updates right away. Long replays finish at the time limit.</p></div>
     </section>
 
     <section class="preferences" aria-labelledby="preferences-title">
@@ -155,6 +159,7 @@ class FollowSidebar {
   }
 
   clearView() {
+    this.controller.clearSpeedPreview();
     this.ready = false;
     this.view = undefined;
     this.lastState = undefined;

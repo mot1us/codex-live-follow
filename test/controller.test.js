@@ -523,3 +523,51 @@ test('separate pane is reused and recreated only when its group closes', async t
   await until(() => mock.shown.length === 3, 'closed pane is recreated');
   assert.equal(mock.shown[2].options.viewColumn, mock.vscode.ViewColumn.Beside);
 });
+
+test('changing speed affects the running replay in both directions without jumping ahead', async t => {
+  const { mock, controller } = fixture(t, {
+    config: { typingCharsPerSecond: 20, maxReplayDurationMs: 5000 }
+  });
+  await controller.start();
+  const uri = mock.uri('speed.js');
+  mock.write(uri, 'x'.repeat(2000), true);
+  await until(() => mock.frames.some(frame => frame.text.length > 0), 'slow replay starts');
+  const sample = async () => {
+    const started = Date.now();
+    const before = controller.currentJob.displayedText.length;
+    await new Promise(resolve => setTimeout(resolve, 300));
+    return { chars: controller.currentJob.displayedText.length - before, elapsed: Date.now() - started };
+  };
+  const slow = await sample();
+  assert.ok(slow.chars <= Math.ceil(slow.elapsed * 20 / 1000) + 3, 'time limit cannot override slow speed');
+  controller.previewSpeed(400);
+  const fast = await sample();
+  assert.ok(fast.chars >= 60, 'dragging faster changes this replay');
+  assert.ok(fast.chars <= Math.ceil(fast.elapsed * 400 / 1000) + 25, 'changing speed never recalculates past time');
+  await controller.setSetting('typingCharsPerSecond', 400);
+  assert.equal(controller.liveSpeed, undefined, 'releasing the slider commits its value');
+  await mock.configure('typingCharsPerSecond', 20);
+  const slowerAgain = await sample();
+  assert.ok(slowerAgain.chars <= Math.ceil(slowerAgain.elapsed * 20 / 1000) + 3, 'slowing down affects this replay too');
+  assert.equal(mock.files.get(uri.toString()).content.length, 2000);
+  await mock.commands.get('codexLiveFollow.skipReplay')();
+  await until(() => !controller.playing, 'speed test replay cleans up');
+});
+
+test('long slow replay finishes at its deadline instead of increasing typing speed', async t => {
+  const { mock, controller } = fixture(t, {
+    config: { typingCharsPerSecond: 20, maxReplayDurationMs: 1000 }
+  });
+  await controller.start();
+  const uri = mock.uri('deadline.js');
+  const source = 'x'.repeat(2000);
+  mock.write(uri, source, true);
+  await until(() => mock.frames.some(frame => frame.text.length > 0), 'deadline replay starts');
+  await until(() => !controller.playing, 'slow replay respects its time limit');
+  const partial = mock.frames.filter(frame => frame.text.length < source.length);
+  assert.ok(partial.length > 5);
+  assert.ok(partial.every(frame => frame.text.length <= 21), 'animation keeps the selected rate until the deadline');
+  assert.ok(mock.frames.some(frame => frame.text === source), 'deadline shows complete saved content');
+  assert.equal(controller.replayContents.size, 0);
+  assert.equal(mock.files.get(uri.toString()).content, source);
+});

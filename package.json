@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Specter",
   "description": "Replays saved file changes as typing in VS Code. Runs locally, with no AI or network connection.",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {
@@ -130,7 +130,7 @@
           "default": 120,
           "minimum": 20,
           "maximum": 400,
-          "description": "Typing replay speed, in characters per second."
+          "description": "Typing replay speed, in characters per second. Changes affect the current replay immediately."
         },
         "codexLiveFollow.maxReplayCharacters": {
           "type": "number",
@@ -144,7 +144,7 @@
           "default": 12000,
           "minimum": 1000,
           "maximum": 60000,
-          "description": "Time limit for each typing replay, in milliseconds. Long edits speed up to fit."
+          "description": "Time limit for each typing replay, in milliseconds. At the limit, show the complete saved file without increasing the selected speed."
         },
         "codexLiveFollow.highlightDurationMs": {
           "type": "number",

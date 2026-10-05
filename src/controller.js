@@ -117,6 +117,22 @@ class LiveFollow {
     if (!this.disposed) this.output.appendLine(`[${new Date().toISOString()}] ${message}`);
   }
 
+  typingSpeed() {
+    return this.liveSpeed ?? this.numberConfig('typingCharsPerSecond', 120, 20, 400);
+  }
+
+  previewSpeed(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 20 || value > 400) return;
+    this.liveSpeed = value;
+    this.updateStatus();
+  }
+
+  clearSpeedPreview() {
+    if (this.liveSpeed === undefined) return;
+    this.liveSpeed = undefined;
+    this.updateStatus();
+  }
+
   getState() {
     let status = 'watching';
     let title = 'Waiting for saves';
@@ -135,6 +151,7 @@ class LiveFollow {
         `Resumes after ${this.numberConfig('idleDelayMs', 3000, 500, 60000) / 1000} seconds idle.`;
     } else if (this.currentJob && !this.currentJob.cancelled) {
       status = 'playing'; title = 'Replaying an edit'; detail = 'Showing the latest save.';
+      if (this.currentJob.truncated) detail = 'Replay hit its time limit; showing the saved file.';
       if (this.currentJob.kind === 'inspection') {
         status = 'inspecting';
         title = this.currentJob.phase === 'suspect' ? 'Checking a hunch' : 'Taking a look';
@@ -150,7 +167,7 @@ class LiveFollow {
       pending: this.queue.length, canSkip: status === 'playing' || status === 'inspecting',
       progress: status === 'playing' && typeof job?.progress === 'number' ? job.progress : null,
       mode: this.config('mode', 'typing'),
-      speed: this.numberConfig('typingCharsPerSecond', 120, 20, 400),
+      speed: this.typingSpeed(),
       pauseOnInteraction: this.config('pauseOnInteraction', true),
       pauseWhenUnfocused: this.config('pauseWhenUnfocused', true),
       ignoreEditorSaves: this.config('ignoreEditorSaves', true),
@@ -182,7 +199,11 @@ class LiveFollow {
     }
     const target = this.api.workspace.workspaceFolders?.length
       ? this.api.ConfigurationTarget.Workspace : this.api.ConfigurationTarget.Global;
-    await this.api.workspace.getConfiguration('codexLiveFollow').update(key, value, target);
+    try {
+      await this.api.workspace.getConfiguration('codexLiveFollow').update(key, value, target);
+    } finally {
+      if (key === 'typingCharsPerSecond' && this.liveSpeed === value) this.clearSpeedPreview();
+    }
     if (key === 'enabled') this.applyConfiguration();
   }
 
@@ -658,11 +679,12 @@ class LiveFollow {
       if (!editor) return;
       job.progress = 0;
       this.updateStatus();
-      const rate = Math.max(this.numberConfig('typingCharsPerSecond', 120, 20, 400),
-        count * 1000 / this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000));
-      const started = Date.now() - FRAME_MS;
+      const duration = this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000);
+      const started = Date.now();
+      let lastFrame = started - FRAME_MS;
+      let allowance = 0;
       let completed = 0;
-      for (const stage of stages) {
+      stagesLoop: for (const stage of stages) {
         if (!this.valid(job) || job.skip) break;
         const head = job.displayedText.slice(0, stage.start);
         const tail = job.displayedText.slice(stage.start + stage.deleteCount);
@@ -676,8 +698,21 @@ class LiveFollow {
         this.replayContents.set(key, job.displayedText);
         this.replayEmitter.fire(uri);
         do {
-          const target = Math.floor((Date.now() - started) * rate / 1000) - completed;
-          const next = Math.min(stage.typed.length, Math.max(index + 1, target));
+          const now = Date.now();
+          if (now - started >= duration) {
+            job.truncated = true;
+            break stagesLoop;
+          }
+          // Account for this frame at the current speed. Changing the slider
+          // must not recalculate all elapsed time and jump through code.
+          allowance += Math.max(0, now - lastFrame) * this.typingSpeed() / 1000;
+          lastFrame = now;
+          const target = Math.floor(allowance) - completed;
+          const next = Math.min(stage.typed.length, Math.max(index, target));
+          if (next === index && index < stage.typed.length) {
+            await this.delay(FRAME_MS, job);
+            continue;
+          }
           const chunk = stage.typed.slice(index, next).join('');
           const lines = chunk.split('\n');
           if (lines.length > 1) { line += lines.length - 1; column = lines.at(-1).length; }
@@ -765,7 +800,7 @@ class LiveFollow {
       { label: 'Normal', description: '120 characters per second', value: 120 },
       { label: 'Fast', description: '240 characters per second', value: 240 },
       { label: 'Very fast', description: '400 characters per second', value: 400 }
-    ], { title: 'Specter: Typing Speed', placeHolder: 'Choose a speed. Long edits speed up to fit the time limit.' });
+    ], { title: 'Specter: Typing Speed', placeHolder: 'Choose a speed. It updates the current replay too.' });
     if (selected) await this.setSetting('typingCharsPerSecond', selected.value);
   }
 

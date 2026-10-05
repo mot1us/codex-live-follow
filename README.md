@@ -25,7 +25,10 @@ macOS, Windows, and Linux. No build tools or API key needed to install it.
 
 **Typing replay** shows the saved changes as typing. **Changed lines** takes
 you straight to the edit. Separate changes replay one block at a time. You can
-change the speed, skip a replay, or pause.
+change the speed, skip a replay, or pause. The speed slider updates the current
+replay while you drag it. Long replays show the complete saved file when they
+reach the time limit (12 seconds by default). They keep your chosen speed until
+then. Raise **Max Replay Duration** in settings if you want more time.
 
 - **Separate pane** keeps replay beside the file you're working on.
 - **Recent edits** lets you replay something you missed. It keeps up to 20 edits

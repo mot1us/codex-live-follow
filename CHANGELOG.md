@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1
+
+- Make the typing slider affect the running replay while dragging.
+- Keep the selected speed instead of overriding it to meet a time limit.
+- Show the complete saved file at the deadline and explain this in the controls.
+- Preview slider changes in memory; save the setting when dragging ends.
+
 ## 0.9.0
 
 - Replay separate changed blocks without retyping the code between them.

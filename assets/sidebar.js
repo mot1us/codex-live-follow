@@ -24,7 +24,10 @@
     send({ type: 'setting', key: 'mode', value: event.target.value });
   });
   const speed = element('speed');
-  speed.addEventListener('input', () => update('speed-value', 'textContent', `${speed.value} chars/s`));
+  speed.addEventListener('input', () => {
+    update('speed-value', 'textContent', `${speed.value} chars/s`);
+    send({ type: 'speedPreview', value: Number(speed.value) });
+  });
   speed.addEventListener('change', () => {
     send({ type: 'setting', key: 'typingCharsPerSecond', value: Number(speed.value) });
   });
