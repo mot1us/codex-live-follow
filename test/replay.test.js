@@ -88,3 +88,30 @@ test('block offsets reconstruct insertions, deletions, CRLF, Unicode, and bounde
   }
   assert.ok(makeReplayStages(cases.at(-1)[0], cases.at(-1)[1])[0].coarse);
 });
+
+test('oversized and coarse replays return changed ranges without character arrays', () => {
+  for (const [before, after, limit] of [
+    ['', 'x'.repeat(4 * 1024 * 1024), 20000],
+    ['a\nsame\nb\n', 'x'.repeat(80) + '\nsame\n' + 'y'.repeat(80) + '\n', 100],
+    ['old\n'.repeat(500), 'new\n'.repeat(500), 20000]
+  ]) {
+    const stages = makeReplayStages(before, after, limit);
+    assert.ok(stages.length > 0);
+    assert.ok(stages.every(stage => stage.limited));
+    assert.equal(stages.flatMap(stage => stage.typed).length, 0);
+    assert.ok(stages.every(stage => stage.hunk.end > stage.hunk.start));
+  }
+});
+
+test('typing limits count Unicode characters across all changed blocks', () => {
+  const before = 'old\nsame\nold\n';
+  const after = '🌱🌱\nsame\n🌱🌱\n';
+  const allowed = makeReplayStages(before, after, 4);
+  assert.equal(allowed.flatMap(stage => stage.typed).length, 4);
+  let text = before;
+  for (const stage of allowed) {
+    text = text.slice(0, stage.start) + stage.typed.join('') + text.slice(stage.start + stage.deleteCount);
+  }
+  assert.equal(text, after);
+  assert.ok(makeReplayStages(before, after, 3).every(stage => stage.limited));
+});

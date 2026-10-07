@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.2
+
+- Preserve the latest editor choice when a cancelled display request completes late.
+- Drop slow inspections superseded by newer reports, while preserving duplicate-notification handling.
+- Make Skip stop visiting further blocks in Changed lines mode.
+- Share eight source-read workers across startup, save bursts, inspections, and rescans.
+- Check replay limits before allocating character arrays and reduce refresh frequency for large files.
+- Correct architecture notes about live typing speed, deadlines, separate blocks, and cache limits.
+
 ## 0.9.1
 
 - Make the typing slider affect the running replay while dragging.

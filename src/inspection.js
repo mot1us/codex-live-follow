@@ -62,7 +62,9 @@ class InspectionFeed {
       if (!event || this.seen.get(key) === event.id) return;
       this.seen.set(key, event.id);
       const target = this.api.Uri.joinPath(folder.uri, event.path);
-      await this.report({ ...event, uri: target, generation });
+      // Recheck the accepted report after the target's asynchronous source read.
+      // Repeated filesystem notifications for the same ID do not supersede it.
+      await this.report({ ...event, uri: target, generation }, () => this.seen.get(key) === event.id);
     } catch { /* Incomplete, invalid, or deleted reports are ignored. */ }
   }
 

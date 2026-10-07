@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Specter",
   "description": "Replays saved file changes as typing in VS Code. Runs locally, with no AI or network connection.",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {

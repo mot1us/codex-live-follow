@@ -571,3 +571,195 @@ test('long slow replay finishes at its deadline instead of increasing typing spe
   assert.equal(controller.replayContents.size, 0);
   assert.equal(mock.files.get(uri.toString()).content, source);
 });
+
+test('skip stops visiting further blocks in changed-lines mode', async t => {
+  const { mock, controller } = fixture(t, { config: { mode: 'follow', minimumDisplayMs: 500 } });
+  const uri = mock.uri('skip-blocks.js');
+  mock.put(uri, 'old-a\nkeep-a\nold-b\nkeep-b\nold-c\n');
+  await controller.start();
+  mock.write(uri, 'new-a\nkeep-a\nnew-b\nkeep-b\nnew-c\n');
+  await until(() => mock.shown.length === 1, 'first changed block appears');
+  await mock.commands.get('codexLiveFollow.skipReplay')();
+  await until(() => !controller.playing, 'skipped job finishes');
+  assert.equal(mock.shown.length, 1, 'skip must not visit the remaining blocks');
+});
+
+for (const mode of ['follow', 'typing']) test(`navigation during a pending ${mode} display survives its late completion`, async t => {
+  const { mock, controller } = fixture(t, { config: { mode } });
+  const source = mock.uri('late-display.js');
+  const firstChoice = mock.uri('first-choice.js');
+  const latestChoice = mock.uri('latest-choice.js');
+  for (const uri of [source, firstChoice, latestChoice]) mock.put(uri, 'before\n');
+  await controller.start();
+  const showing = deferred();
+  t.after(() => showing.resolve());
+  let started = false;
+  mock.hooks.showTextDocument = async document => {
+    if (document.uri.toString() === source.toString()) { started = true; await showing.promise; }
+  };
+  mock.write(source, 'after\n');
+  await until(() => started, 'display request starts');
+  for (const uri of [firstChoice, latestChoice]) {
+    const document = await mock.vscode.workspace.openTextDocument(uri);
+    await mock.vscode.window.showTextDocument(document, { preview: false });
+  }
+  assert.equal(controller.currentJob.cancelled, true);
+  showing.resolve();
+  await until(() => !controller.playing, 'cancelled display finishes');
+  assert.equal(mock.vscode.window.activeTextEditor.document.uri.toString(), latestChoice.toString());
+  assert.equal(controller.isWaiting(), true);
+});
+
+test('new navigation during a late-display repair wins over the earlier choice', async t => {
+  const { mock, controller } = fixture(t, { config: { mode: 'follow' } });
+  const source = mock.uri('repair-source.js');
+  const first = mock.uri('repair-first.js');
+  const latest = mock.uri('repair-latest.js');
+  for (const uri of [source, first, latest]) mock.put(uri, 'before');
+  await controller.start();
+  const showing = deferred();
+  const restoring = deferred();
+  t.after(() => { showing.resolve(); restoring.resolve(); });
+  let started = false;
+  let repairing = false;
+  let firstShows = 0;
+  mock.hooks.showTextDocument = async document => {
+    if (document.uri.toString() === source.toString()) { started = true; await showing.promise; }
+    if (document.uri.toString() === first.toString() && ++firstShows === 2) {
+      repairing = true;
+      await restoring.promise;
+    }
+  };
+  mock.write(source, 'after');
+  await until(() => started);
+  await mock.vscode.window.showTextDocument(await mock.vscode.workspace.openTextDocument(first), { preview: false });
+  showing.resolve();
+  await until(() => repairing, 'repair starts');
+  await mock.vscode.window.showTextDocument(await mock.vscode.workspace.openTextDocument(latest), { preview: false });
+  restoring.resolve();
+  await until(() => !controller.playing);
+  assert.equal(mock.vscode.window.activeTextEditor.document.uri.toString(), latest.toString());
+});
+
+test('manual pause during a pending display keeps the previous editor while the sidebar has focus', async t => {
+  const { mock, controller } = fixture(t, { config: { mode: 'follow' } });
+  const source = mock.uri('pause-late.js');
+  const previous = mock.uri('previous-editor.js');
+  for (const uri of [source, previous]) mock.put(uri, 'before');
+  await controller.start();
+  await mock.vscode.window.showTextDocument(await mock.vscode.workspace.openTextDocument(previous));
+  mock.vscode.window.activeTextEditor = undefined;
+  controller.quietUntil = 0;
+  const showing = deferred();
+  t.after(() => showing.resolve());
+  let started = false;
+  mock.hooks.showTextDocument = async document => {
+    if (document.uri.toString() === source.toString()) { started = true; await showing.promise; }
+  };
+  mock.write(source, 'after');
+  await until(() => started);
+  await mock.configure('enabled', false);
+  showing.resolve();
+  await until(() => !controller.playing);
+  assert.equal(mock.vscode.window.activeTextEditor.document.uri.toString(), previous.toString());
+  assert.equal(controller.enabled, false);
+});
+
+test('write bursts bound concurrent reads and keep the newest queued revision', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  await controller.start();
+  const gate = deferred();
+  t.after(() => gate.resolve());
+  let active = 0;
+  let peak = 0;
+  let started = 0;
+  mock.hooks.readFile = async uri => {
+    active++;
+    started++;
+    peak = Math.max(peak, active);
+    await gate.promise;
+    active--;
+    return Buffer.from(mock.files.get(uri.toString()).content);
+  };
+  const uris = Array.from({ length: 40 }, (_, i) => mock.uri(`bounded-${i}.js`));
+  for (const uri of uris) mock.write(uri, 'first', true);
+  await until(() => started >= 8, 'read workers start');
+  await new Promise(resolve => setTimeout(resolve, 120));
+  assert.equal(started, 8, 'extra reads wait for a worker');
+  for (let i = 0; i < 5; i++) mock.write(uris.at(-1), `revision-${i}`);
+  await until(() => controller.pendingReads.size === 0);
+  gate.resolve();
+  await settleRead(controller);
+  assert.equal(peak, 8);
+  assert.equal(started, uris.length, 'obsolete queued revisions never read the file');
+  assert.equal(controller.snapshots.get(uris.at(-1).toString()), 'revision-4');
+});
+
+test('a rescan drops waiting reads while in-flight reads still share its limit', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  await controller.start();
+  const gate = deferred();
+  t.after(() => gate.resolve());
+  let active = 0;
+  let peak = 0;
+  const started = [];
+  mock.hooks.readFile = async uri => {
+    active++;
+    peak = Math.max(peak, active);
+    started.push(uri.toString());
+    await gate.promise;
+    active--;
+    return Buffer.from('latest');
+  };
+  for (let i = 0; i < 30; i++) mock.write(mock.uri(`old-scan-${i}.js`), 'old', true);
+  await until(() => started.length >= 8);
+  await until(() => controller.pendingReads.size === 0);
+  const source = mock.uri('new-scan.js');
+  mock.put(source, 'latest');
+  mock.hooks.findFiles = () => [source];
+  const resetting = controller.resetWorkspace();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(started.length, 8, 'reset must not start another eight reads');
+  gate.resolve();
+  await resetting;
+  assert.equal(peak, 8);
+  assert.equal(started.length, 9, 'obsolete waiting reads are discarded');
+  assert.deepEqual([...controller.snapshots.keys()], [source.toString()]);
+});
+
+test('disposal releases queued readers without starting more I/O', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  await controller.start();
+  const gate = deferred();
+  t.after(() => gate.resolve());
+  let started = 0;
+  mock.hooks.readFile = async () => { started++; await gate.promise; return Buffer.from('source'); };
+  for (let i = 0; i < 30; i++) mock.write(mock.uri(`dispose-read-${i}.js`), 'source', true);
+  await until(() => started >= 8);
+  await until(() => controller.pendingReads.size === 0);
+  controller.dispose();
+  gate.resolve();
+  await until(() => controller.readPool.active === 0);
+  assert.equal(started, 8);
+  assert.equal(controller.readPool.pending.size, 0);
+  assert.equal(controller.snapshots.size, 0);
+});
+
+test('large documents refresh less often without changing the selected typing rate', async t => {
+  const { mock, controller } = fixture(t, {
+    config: { typingCharsPerSecond: 20, maxReplayDurationMs: 1000 }
+  });
+  const uri = mock.uri('large-frame.js');
+  const head = 'a'.repeat(500000) + '\n';
+  mock.put(uri, head + 'old\n');
+  await controller.start();
+  const after = head + 'z'.repeat(100) + '\n';
+  mock.write(uri, after);
+  await until(() => controller.history.entries.length === 1 && !controller.playing, 'large replay finishes');
+  const partial = mock.frames.filter(frame => frame.text.includes('z') && frame.text !== after);
+  assert.ok(partial.length > 1, 'large files still animate');
+  assert.ok(partial.length <= 8, 'large files must not refresh at 20 frames per second');
+  assert.ok(partial.every(frame => frame.text.match(/z/g).length <= 21), 'refresh cadence must not increase typing speed');
+  assert.ok(mock.frames.some(frame => frame.text === after));
+  assert.equal(mock.files.get(uri.toString()).content, after);
+});

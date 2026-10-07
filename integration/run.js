@@ -85,6 +85,53 @@ async function run() {
     assert.equal(api.getState().recent.length, 0);
     console.log('PASS separate pane, separated blocks, and read-only recent replay');
 
+    const skipSource = vscode.Uri.file(path.join(root, 'skip-blocks-host-test.txt'));
+    await config.update('mode', 'follow', vscode.ConfigurationTarget.Workspace);
+    await config.update('minimumDisplayMs', 500, vscode.ConfigurationTarget.Workspace);
+    const skipLines = Array.from({ length: 400 }, (_, i) => `unchanged line ${i + 1}`);
+    await fs.writeFile(skipSource.fsPath, skipLines.join('\n'));
+    await until(() => api.getState().recent.some(entry => entry.file.endsWith('skip-blocks-host-test.txt')) &&
+      api.getState().status === 'watching', 'changed-lines baseline finishes');
+    for (const line of [79, 199, 319]) skipLines[line] = `changed line ${line + 1}`;
+    await fs.writeFile(skipSource.fsPath, skipLines.join('\n'));
+    const firstBlockVisible = () => vscode.window.visibleTextEditors.some(editor =>
+      editor.document.uri.toString() === skipSource.toString() &&
+      editor.visibleRanges.some(range => range.start.line <= 79 && range.end.line >= 79));
+    await until(() => api.getState().status === 'playing' && firstBlockVisible(), 'first changed block is visible');
+    await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
+    await until(() => api.getState().status === 'watching', 'changed-lines skip completes');
+    assert.ok(firstBlockVisible(), 'skip must not scroll to the later changed blocks');
+    await config.update('mode', 'typing', vscode.ConfigurationTarget.Workspace);
+    await config.update('minimumDisplayMs', 100, vscode.ConfigurationTarget.Workspace);
+    console.log('PASS Skip stops further changed-line visits in the real host');
+
+    const largeSource = vscode.Uri.file(path.join(root, 'large-frame-host-test.txt'));
+    const largeHead = 'a'.repeat(500000) + '\n';
+    await fs.writeFile(largeSource.fsPath, largeHead + 'old\n');
+    await until(() => api.getState().recent.some(entry => entry.file.endsWith('large-frame-host-test.txt')) &&
+      api.getState().status === 'watching', 'large-file baseline finishes');
+    const largeFrames = [];
+    const largeSubscription = vscode.workspace.onDidChangeTextDocument(event => {
+      if (event.document.uri.scheme === 'codex-live-follow' && event.document.uri.path === largeSource.path) {
+        largeFrames.push(event.document.getText().replace(/\r\n/g, '\n'));
+      }
+    });
+    try {
+      await config.update('typingCharsPerSecond', 20, vscode.ConfigurationTarget.Workspace);
+      const largeAfter = largeHead + 'z'.repeat(100) + '\n';
+      await fs.writeFile(largeSource.fsPath, largeAfter);
+      await until(() => largeFrames.includes(largeAfter) && previewTabs().length === 0 &&
+        api.getState().status === 'watching', 'large-file typing respects its deadline');
+      const partial = largeFrames.filter(frame => frame.includes('z') && frame !== largeAfter);
+      assert.ok(partial.length > 1 && partial.length <= 8, 'large files use fewer full-document refreshes');
+      assert.ok(partial.every(frame => frame.match(/z/g).length <= 21), 'cadence cannot increase typing speed');
+      assert.equal(await fs.readFile(largeSource.fsPath, 'utf8'), largeAfter);
+      console.log('PASS large-document refresh cadence, selected speed, and deadline; disk untouched');
+    } finally {
+      largeSubscription.dispose();
+      await config.update('typingCharsPerSecond', 400, vscode.ConfigurationTarget.Workspace);
+    }
+
     const speedSource = vscode.Uri.file(path.join(root, 'speed-host-test.txt'));
     const speedFrames = [];
     const speedSubscription = vscode.workspace.onDidChangeTextDocument(event => {

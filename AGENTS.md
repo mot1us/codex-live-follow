@@ -1,5 +1,15 @@
 # Working on Specter
 
+## Delivering updates
+
+After completing each requested update and its required checks, commit the task's
+changes and push to the configured GitHub remote. The user has authorized this
+workflow; do not ask again for routine commits and pushes. Keep unrelated changes
+out of commits and do not force-push. On `main`, the existing GitHub Actions
+workflow publishes the beta for a new version after its checks pass.
+
+## Investigating bugs
+
 During bug investigation, report meaningful source locations so the user can watch
 the investigation in VS Code. From this repository root, run:
 

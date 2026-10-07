@@ -8,12 +8,15 @@ const { compileGlobs, escapeGlob } = require('./ignore');
 const { setupInspection } = require('./setup');
 const { FollowSidebar, VIEW_ID } = require('./sidebar');
 const { InspectionFeed } = require('./inspection');
+const { ReadPool } = require('./read-pool');
 
 const SNAPSHOT_LIMIT = 1200;
 const SNAPSHOT_BYTES = 32 * 1024 * 1024;
 const QUEUE_LIMIT = 12;
 const QUEUE_BYTES = 8 * 1024 * 1024;
 const FRAME_MS = 50;
+const READ_LIMIT = 8;
+const FRAME_BYTES = 128 * 1024;
 const SCHEME = 'codex-live-follow';
 const SKIP_DIRECTORIES = new Set([
   '.git', 'node_modules', 'dist', 'build', 'out', '.next', '.venv',
@@ -29,6 +32,7 @@ class LiveFollow {
     this.trackedBytes = 0;
     this.revisions = new Map();
     this.reading = new Map();
+    this.readPool = new ReadPool(READ_LIMIT);
     this.readSerial = 0;
     this.pendingReads = new Map();
     this.savedByEditor = new Map();
@@ -38,7 +42,7 @@ class LiveFollow {
     this.globCache = new Map();
     this.watchers = [];
     this.disposables = [];
-    this.inspections = new InspectionFeed(vscode, event => this.handleInspection(event));
+    this.inspections = new InspectionFeed(vscode, (event, current) => this.handleInspection(event, current));
     this.disposables.push(this.inspections);
     this.replayContents = new Map();
     this.replayCounter = 0;
@@ -320,6 +324,7 @@ class LiveFollow {
 
   userActivity(reason = 'editor interaction') {
     if (this.disposed || !this.config('pauseOnInteraction', true)) return;
+    if (this.pendingPresentation) this.pendingPresentation.restore = this.navigationEditor();
     if (this.currentJob && !this.currentJob.cancelled) this.log(`Replay paused for ${reason}.`);
     this.quietUntil = Date.now() + this.numberConfig('idleDelayMs', 3000, 500, 60000);
     this.cancelCurrent();
@@ -358,6 +363,7 @@ class LiveFollow {
     this.watchers = [];
     for (const timer of this.pendingReads.values()) clearTimeout(timer);
     this.pendingReads.clear();
+    this.readPool.clear();
     this.revisions.clear();
     this.reading.clear();
     this.snapshots.clear();
@@ -386,13 +392,14 @@ class LiveFollow {
         SNAPSHOT_LIMIT);
       if (this.disposed || generation !== this.generation) return;
       let next = 0;
-      await Promise.all(Array.from({ length: 8 }, async () => {
+      await Promise.all(Array.from({ length: READ_LIMIT }, async () => {
         while (next < files.length && !this.disposed && generation === this.generation) {
           const uri = files[next++];
           if (this.isIgnored(uri)) continue;
           const key = uri.toString();
           const revision = this.revisions.get(key);
-          const text = await this.readText(uri);
+          const text = await this.readText(uri, () => generation === this.generation &&
+            revision === this.revisions.get(key));
           if (this.disposed || generation !== this.generation) return;
           if (text !== null && revision === this.revisions.get(key) && !this.snapshots.has(key)) {
             this.remember(uri, text);
@@ -431,15 +438,18 @@ class LiveFollow {
     return this.api.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString() && doc.isDirty);
   }
 
-  async readText(uri) {
-    try {
-      const limit = this.numberConfig('maxFileSizeKB', 512, 16, 4096) * 1024;
-      const stat = await this.api.workspace.fs.stat(uri);
-      if (!(stat.type & this.api.FileType.File) || stat.size > limit) return null;
-      const bytes = await this.api.workspace.fs.readFile(uri);
-      if (bytes.byteLength > limit || bytes.includes(0)) return null;
-      return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    } catch { return null; }
+  readText(uri, current = () => true) {
+    const valid = () => !this.disposed && current();
+    return this.readPool.run(async () => {
+      try {
+        const limit = this.numberConfig('maxFileSizeKB', 512, 16, 4096) * 1024;
+        const stat = await this.api.workspace.fs.stat(uri);
+        if (!valid() || !(stat.type & this.api.FileType.File) || stat.size > limit) return null;
+        const bytes = await this.api.workspace.fs.readFile(uri);
+        if (!valid() || bytes.byteLength > limit || bytes.includes(0)) return null;
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      } catch { return null; }
+    }, valid);
   }
 
   remember(uri, text) {
@@ -490,7 +500,8 @@ class LiveFollow {
     reads.add(revision);
     this.reading.set(key, reads);
     try {
-      const current = await this.readText(uri);
+      const current = await this.readText(uri, () => generation === this.generation &&
+        revision === this.revisions.get(key));
       if (this.disposed || generation !== this.generation || revision !== this.revisions.get(key)) return;
       if (current === null || this.isIgnored(uri)) return;
       const previous = this.snapshots.get(key);
@@ -520,11 +531,12 @@ class LiveFollow {
     if (!this.initializing && !this.pendingReads.has(key) && !this.reading.has(key)) this.revisions.delete(key);
   }
 
-  async handleInspection(event) {
+  async handleInspection(event, current = () => true) {
     if (this.disposed || !this.enabled || event.generation !== this.generation ||
-      this.isIgnored(event.uri) || this.isDirty(event.uri)) return;
-    if (await this.readText(event.uri) === null || this.disposed || !this.enabled ||
-      event.generation !== this.generation || this.isDirty(event.uri)) return;
+      !current() || this.isIgnored(event.uri) || this.isDirty(event.uri)) return;
+    if (await this.readText(event.uri, () => current() && this.enabled &&
+      event.generation === this.generation) === null || this.disposed || !this.enabled ||
+      !current() || event.generation !== this.generation || this.isDirty(event.uri)) return;
     this.enqueue({ ...event, kind: 'inspection', bytes: Buffer.byteLength(event.message) });
   }
 
@@ -572,7 +584,7 @@ class LiveFollow {
           }
           if (this.config('mode', 'typing') === 'typing') await this.playTyping(job);
           else for (const hunk of changedHunks(job.before, job.after).slice(0, 6)) {
-            if (!this.valid(job)) break;
+            if (!this.valid(job) || job.skip) break;
             await this.showChange(job, hunk);
           }
         } catch (error) {
@@ -593,6 +605,8 @@ class LiveFollow {
 
   async present(document, job) {
     if (!this.valid(job) || this.isDirty(job.uri)) return undefined;
+    const presentation = { restore: this.navigationEditor() };
+    this.pendingPresentation = presentation;
     this.pendingShowUri = document.uri.toString();
     job.presentedUri = this.pendingShowUri;
     try {
@@ -605,10 +619,40 @@ class LiveFollow {
           ? this.replayColumn ?? this.api.ViewColumn.Beside : this.api.ViewColumn.Active
       });
       if (this.config('replayPane', 'current') === 'beside') this.replayColumn = editor.viewColumn;
-      if (!this.valid(job) || this.isDirty(job.uri)) return undefined;
+      if (!this.valid(job) || this.isDirty(job.uri)) {
+        await this.restoreNavigation(presentation, editor);
+        return undefined;
+      }
       return editor;
     } finally {
       this.pendingShowUri = undefined;
+      this.pendingPresentation = undefined;
+    }
+  }
+
+  navigationEditor() {
+    const { window } = this.api;
+    return window.activeTextEditor ?? window.visibleTextEditors.find(editor =>
+      editor.viewColumn === window.tabGroups.activeTabGroup.viewColumn);
+  }
+
+  async restoreNavigation(presentation, lateEditor) {
+    // showTextDocument cannot be cancelled. Repair only a display that displaced
+    // the user's editor, and keep any newer navigation made during the repair.
+    while (!this.disposed && this.navigationEditor()?.document === lateEditor.document) {
+      const target = presentation.restore;
+      if (!target || target.document.uri.toString() === lateEditor.document.uri.toString() ||
+        target.document.uri.scheme === SCHEME) return;
+      const document = target.document.isClosed
+        ? await this.api.workspace.openTextDocument(target.document.uri) : target.document;
+      if (this.disposed) return;
+      if (target !== presentation.restore) continue;
+      if (this.navigationEditor()?.document !== lateEditor.document) return;
+      this.pendingShowUri = document.uri.toString();
+      lateEditor = await this.api.window.showTextDocument(document, {
+        preview: false, preserveFocus: true, viewColumn: target.viewColumn,
+        selection: target.selection
+      });
     }
   }
 
@@ -657,11 +701,11 @@ class LiveFollow {
 
   async playTyping(job) {
     if (!this.valid(job) || this.isDirty(job.uri)) return;
-    const stages = makeReplayStages(job.before, job.after);
+    const stages = makeReplayStages(job.before, job.after,
+      this.numberConfig('maxReplayCharacters', 20000, 100, 100000));
     const count = stages.reduce((sum, stage) => sum + stage.typed.length, 0);
-    if (!count || stages.some(stage => stage.coarse) ||
-      count > this.numberConfig('maxReplayCharacters', 20000, 100, 100000) || this.replayContents.size >= 8) {
-      if (count) this.log('Change exceeds replay limits; showing changed lines directly.');
+    if (!count || stages.some(stage => stage.limited) || this.replayContents.size >= 8) {
+      if (count || stages.some(stage => stage.limited)) this.log('Change exceeds replay limits; showing changed lines directly.');
       for (const { hunk: changed } of stages.slice(0, 6)) {
         if (!this.valid(job) || job.skip) break;
         await this.showChange(job, changed);
@@ -681,6 +725,9 @@ class LiveFollow {
       this.updateStatus();
       const duration = this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000);
       const started = Date.now();
+      const frameMs = Math.min(250, Math.max(FRAME_MS,
+        Math.ceil(Math.max(Buffer.byteLength(job.before), Buffer.byteLength(job.after)) / FRAME_BYTES) * FRAME_MS));
+      const waitFrame = () => this.delay(Math.min(frameMs, Math.max(0, duration - (Date.now() - started))), job);
       let lastFrame = started - FRAME_MS;
       let allowance = 0;
       let completed = 0;
@@ -710,7 +757,7 @@ class LiveFollow {
           const target = Math.floor(allowance) - completed;
           const next = Math.min(stage.typed.length, Math.max(index, target));
           if (next === index && index < stage.typed.length) {
-            await this.delay(FRAME_MS, job);
+            await waitFrame();
             continue;
           }
           const chunk = stage.typed.slice(index, next).join('');
@@ -729,7 +776,7 @@ class LiveFollow {
           editor.selection = new this.api.Selection(visibleLine, visibleColumn, visibleLine, visibleColumn);
           editor.revealRange(new this.api.Range(visibleLine, visibleColumn, visibleLine, visibleColumn),
             this.api.TextEditorRevealType.InCenterIfOutsideViewport);
-          if (index < stage.typed.length) await this.delay(FRAME_MS, job);
+          if (index < stage.typed.length) await waitFrame();
         } while (index < stage.typed.length && this.valid(job) && !job.skip);
         completed += stage.typed.length;
       }
@@ -815,6 +862,7 @@ class LiveFollow {
     this.watchers = [];
     for (const timer of this.pendingReads.values()) clearTimeout(timer);
     this.pendingReads.clear();
+    this.readPool.dispose();
     this.queue.length = 0;
     this.snapshots.clear();
     this.history.clear();

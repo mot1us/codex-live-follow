@@ -124,3 +124,43 @@ test('an edit supersedes a queued inspection while preserving the real edit base
   await until(() => !controller.playing && controller.queue.length === 0);
   assert.equal(mock.shown[0].editor.revealed.start.line, 1);
 });
+
+test('a slow older inspection cannot enqueue after a newer report', async t => {
+  const { mock, controller, uri, signal } = await fixture(t);
+  mock.events.windowState.fire({ focused: false });
+  const older = deferred();
+  t.after(() => older.resolve(Buffer.from('source')));
+  let reads = 0;
+  mock.hooks.readFile = target => {
+    if (target.toString() === uri.toString() && ++reads === 1) return older.promise;
+    return Buffer.from(mock.files.get(target.toString()).content);
+  };
+  mock.write(signal, JSON.stringify(report({ id: 'older', line: 1 })), true);
+  await until(() => reads === 1, 'older target read starts');
+  mock.write(signal, JSON.stringify(report({ id: 'newer', line: 3 })));
+  await until(() => controller.queue.some(job => job.id === 'newer'));
+  older.resolve(Buffer.from('source'));
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.deepEqual(controller.queue.map(job => job.id), ['newer']);
+});
+
+test('duplicate report notifications do not invalidate an inspection being checked', async t => {
+  const { mock, controller, uri, signal } = await fixture(t);
+  mock.events.windowState.fire({ focused: false });
+  const targetRead = deferred();
+  t.after(() => targetRead.resolve(Buffer.from('source')));
+  let started = false;
+  let signalReads = 0;
+  mock.hooks.readFile = target => {
+    if (target.toString() === uri.toString()) { started = true; return targetRead.promise; }
+    if (target.toString() === signal.toString()) signalReads++;
+    return Buffer.from(mock.files.get(target.toString()).content);
+  };
+  mock.write(signal, JSON.stringify(report()), true);
+  await until(() => started);
+  mock.write(signal, JSON.stringify(report()));
+  await until(() => signalReads === 2);
+  targetRead.resolve(Buffer.from('source'));
+  await until(() => controller.queue.length > 0);
+  assert.deepEqual(controller.queue.map(job => job.id), ['first']);
+});

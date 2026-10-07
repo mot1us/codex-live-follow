@@ -8,7 +8,7 @@ function insideSurrogatePair(text, index) {
   return head >= 0xd800 && head <= 0xdbff && tail >= 0xdc00 && tail <= 0xdfff;
 }
 
-function makeReplayPlan(before, after) {
+function replayBounds(before, after) {
   // Find unchanged text without allocating character arrays for the whole file.
   let prefix = 0;
   while (
@@ -28,6 +28,11 @@ function makeReplayPlan(before, after) {
     insideSurrogatePair(after, after.length - suffix)) suffix--;
 
   const end = after.length - suffix;
+  return { prefix, end, suffix };
+}
+
+function makeReplayPlan(before, after) {
+  const { prefix, end } = replayBounds(before, after);
   return {
     head: after.slice(0, prefix),
     typed: Array.from(after.slice(prefix, end)),
@@ -35,18 +40,34 @@ function makeReplayPlan(before, after) {
   };
 }
 
-function makeReplayStages(before, after) {
-  return changedBlocks(before, after).map(block => {
+function makeReplayStages(before, after, maxCharacters = Infinity) {
+  const stages = changedBlocks(before, after).map(block => {
     const old = before.slice(block.oldStart, block.oldEnd);
-    const plan = makeReplayPlan(old, after.slice(block.newStart, block.newEnd));
+    const next = after.slice(block.newStart, block.newEnd);
+    const { prefix, end, suffix } = replayBounds(old, next);
     return {
-      start: block.newStart + plan.head.length,
-      deleteCount: old.length - plan.head.length - plan.tail.length,
-      typed: plan.typed,
+      start: block.newStart + prefix,
+      deleteCount: old.length - prefix - suffix,
+      text: next.slice(prefix, end),
       hunk: { start: block.start, end: block.end },
       coarse: block.coarse
     };
   });
+  // Decide whether typing is allowed before allocating one array entry per code
+  // point. Stop counting at the limit, including across separate changed blocks.
+  let limited = Number.isFinite(maxCharacters) && stages.some(stage => stage.coarse);
+  if (Number.isFinite(maxCharacters) && !limited) {
+    let count = 0;
+    counting: for (const stage of stages) {
+      for (let i = 0; i < stage.text.length;) {
+        if (++count > maxCharacters) { limited = true; break counting; }
+        i += stage.text.codePointAt(i) > 0xffff ? 2 : 1;
+      }
+    }
+  }
+  return stages.map(({ text, ...stage }) => limited
+    ? { ...stage, typed: [], limited: true }
+    : { ...stage, typed: Array.from(text) });
 }
 
 module.exports = { makeReplayPlan, makeReplayStages };
