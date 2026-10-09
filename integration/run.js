@@ -36,6 +36,7 @@ async function run() {
   assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));
   console.log('PASS dedicated Specter sidebar opens in the real host');
   const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+  await config.update('typingCharsPerSecond', 60, vscode.ConfigurationTarget.Workspace);
   await vscode.commands.executeCommand('codexLiveFollow.pause');
   const demoSettings = await fs.readFile(path.join(root, '.vscode', 'settings.json'), 'utf8');
   const demoFiles = await fs.readdir(root);
@@ -55,8 +56,8 @@ async function run() {
       editor.document.getText().includes('Specter is working'));
     await until(() => api.getState().status === 'inspecting' && api.getState().line === 2 && sampleInspectionVisible(),
       'sample typing finishes and a line-2 inspection is displayed');
-    assert.ok(demoFrames.some(frame => frame.includes('"S') && !frame.includes('skipping this replay.')),
-      'sample generates partial typing frames even while paused');
+    assert.ok(demoFrames.some(frame => frame.includes('"S') && !frame.includes('console.log(feature);')),
+      `sample generates partial typing frames even while paused; observed ${JSON.stringify(demoFrames)}`);
     assert.ok(demoFrames.some(frame => frame.includes('Specter is working')));
     await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
     await until(() => !api.getState().testing && !vscode.window.tabGroups.all.some(group =>
@@ -68,6 +69,7 @@ async function run() {
     console.log('PASS Test Specter while paused: typing, line inspection, Skip cleanup, files and settings untouched');
   } finally {
     demoSubscription.dispose();
+    await config.update('typingCharsPerSecond', 400, vscode.ConfigurationTarget.Workspace);
     await vscode.commands.executeCommand('codexLiveFollow.resume');
   }
   const source = vscode.Uri.file(path.join(root, 'live-follow-host-test.js'));

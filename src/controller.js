@@ -862,7 +862,7 @@ class LiveFollow {
     this.demoJob = {
       uri: this.api.Uri.joinPath(this.context.extensionUri, 'Specter-test.js').with({ scheme: SCHEME }),
       before: '// Specter test\nconst message = "Hello";\n\nconsole.log(message);\n',
-      after: '// Specter test\nconst message = "Specter is working. Try changing the speed or skipping this replay.";\n\nconsole.log(message);\n',
+      after: '// Specter test\nconst message = "Specter is working";\nconst features = ["Typing replay", "Line inspections", "Skip and Pause"];\n\nfor (const feature of features) {\n  console.log(feature);\n}\n\nconsole.log(message);\n',
       generation: this.generation, demo: true, historical: true
     };
     clearTimeout(this.idleTimer);
