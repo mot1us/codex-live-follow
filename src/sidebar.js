@@ -75,6 +75,7 @@ class FollowSidebar {
       else if (message.action === 'output') await this.api.commands.executeCommand('codexLiveFollow.showOutput');
       else if (message.action === 'settings') await this.api.commands.executeCommand('codexLiveFollow.settings');
       else if (message.action === 'setup') await this.api.commands.executeCommand('codexLiveFollow.setupInspection');
+      else if (message.action === 'test') await this.api.commands.executeCommand('codexLiveFollow.testSpecter');
       else if (message.action === 'clear') await this.api.commands.executeCommand('codexLiveFollow.clearRecent');
       else if (message.action === 'replay' && typeof message.id === 'string' && /^\d{1,16}$/.test(message.id)) {
         await this.api.commands.executeCommand('codexLiveFollow.replayRecent', message.id);
@@ -123,6 +124,11 @@ class FollowSidebar {
       <progress id="progress" max="100" value="0" aria-label="Typing replay progress" hidden></progress>
       <div class="queue-row"><span id="queue">Nothing queued</span><button id="skip" class="text-button" disabled>Skip current</button></div>
       <p id="skipped" class="hint skipped" aria-live="polite"></p>
+    </section>
+
+    <section class="demo" aria-label="Test Specter">
+      <button id="test" class="secondary-button" disabled>Test Specter</button>
+      <p class="hint">Try a sample typing replay and line inspection. Works while paused.</p>
     </section>
 
     <section class="controls" aria-label="Playback controls">

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3
+
+- Keep the latest pending inspection per project and prioritize saved-edit replays.
+- Prevent inspection traffic from evicting saved edits from a full queue.
+- Release obsolete waiting reads immediately and cap the source-read backlog at 256 requests.
+- Count saved reads dropped during backlog overflow in the skipped total.
+- Add Test Specter in the sidebar and Command Palette: a read-only sample typing replay and inspection that works while paused or without a project.
+
 ## 0.9.2
 
 - Preserve the latest editor choice when a cancelled display request completes late.

@@ -135,3 +135,16 @@ test('status bar and Open Controls use the contributed sidebar without a Quick P
   await mock.commands.get('codexLiveFollow.openSidebar')();
   assert.equal(focused, 2);
 });
+
+test('the Test Specter sidebar action starts a demo while replay stays paused', async t => {
+  const { mock, controller, sidebar, messages, view } = await setup(t);
+  await mock.configure('enabled', false);
+  assert.match(view.webview.html, /id="test"[^>]*>Test Specter/);
+  await sidebar.handleMessage({ type: 'action', action: 'test' });
+  assert.equal(controller.enabled, false);
+  assert.equal(messages.at(-1).state.testing, true);
+  await until(() => controller.currentJob?.progress > 0);
+  await sidebar.handleMessage({ type: 'action', action: 'skip' });
+  await until(() => !controller.playing);
+  assert.equal(messages.at(-1).state.testing, false);
+});

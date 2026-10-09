@@ -40,6 +40,11 @@ automated checks. Independent tester feedback still needs to be collected.
 
 ## New controls to try
 
+- Click Test Specter while paused, then without a project open. Expect a sample
+  typing replay followed by a line-2 inspection, with no file or setting changes.
+- Stop the sample using Skip current or Pause Replay; its preview tabs should close.
+- Background VS Code while saved edits and inspections arrive. Only the latest
+  inspection per project should wait, and saved edits should play first.
 - Choose Separate pane and keep another file open beside the replay.
 - Save two distant edits in one file; the middle should stay visible.
 - Click an older recent edit; the actual file should keep its newest content.

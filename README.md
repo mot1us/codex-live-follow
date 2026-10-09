@@ -18,6 +18,11 @@ This is beta for now! [Let me know if you find any issues](https://github.com/mo
 Open **Specter** in the activity bar for controls. Each project remembers
 whether replay is on or paused.
 
+Click **Test Specter** in the sidebar to try a sample typing replay and line
+inspection. It works while paused and without a project open. The sample is
+read-only and leaves your files, recent edits, and settings alone. Use **Skip
+current** or **Pause Replay** to stop it.
+
 Needs desktop VS Code 1.96 or newer. This beta supports local folders on
 macOS, Windows, and Linux. No build tools or API key needed to install it.
 
@@ -39,6 +44,8 @@ then. Raise **Max Replay Duration** in settings if you want more time.
   For patterns such as `**/*.map` or `generated/**`, use **Exclude Globs** in settings.
 - If saves arrive too fast, Specter drops older queued changes and shows a
   skipped count. Recent edits may still have them, within the limits above.
+- Saved edits play before pending inspections. Each project keeps only its
+  latest waiting inspection so reports cannot crowd out saved edits.
 
 The typing happens after a file is saved. Specter uses a read-only preview,
 then opens the real file. It doesn't type into your source files or replace

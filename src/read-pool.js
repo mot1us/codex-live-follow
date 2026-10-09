@@ -2,18 +2,32 @@
 
 // Keep the same limit across startup, watcher bursts, inspections, and rescans.
 class ReadPool {
-  constructor(limit) {
+  constructor(limit, maxPending = 256) {
     this.limit = limit;
+    this.maxPending = maxPending;
     this.active = 0;
     this.pending = new Set();
     this.disposed = false;
   }
 
-  run(read, current) {
+  run(read, current, key, onOverflow) {
     if (this.disposed) return Promise.resolve(null);
     return new Promise((resolve, reject) => {
-      this.pending.add({ read, current, resolve, reject });
+      // Release superseded callers even when every worker is stalled in I/O.
+      for (const request of this.pending) {
+        if ((key !== undefined && request.key === key) || !request.current()) {
+          this.pending.delete(request);
+          request.resolve(null);
+        }
+      }
+      this.pending.add({ read, current, key, onOverflow, resolve, reject });
       this.drain();
+      while (this.pending.size > this.maxPending) {
+        const oldest = this.pending.values().next().value;
+        this.pending.delete(oldest);
+        oldest.resolve(null);
+        oldest.onOverflow?.();
+      }
     });
   }
 

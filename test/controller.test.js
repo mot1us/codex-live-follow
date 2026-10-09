@@ -763,3 +763,69 @@ test('large documents refresh less often without changing the selected typing ra
   assert.ok(mock.frames.some(frame => frame.text === after));
   assert.equal(mock.files.get(uri.toString()).content, after);
 });
+
+test('a stalled watcher backlog remains bounded and reports dropped saves', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  await controller.start();
+  const gate = deferred();
+  t.after(() => gate.resolve());
+  let started = 0;
+  mock.hooks.readFile = async uri => {
+    started++;
+    await gate.promise;
+    return Buffer.from(mock.files.get(uri.toString()).content);
+  };
+  for (let i = 0; i < 270; i++) mock.write(mock.uri(`backlog-${i}.js`), 'latest', true);
+  await until(() => controller.pendingReads.size === 0 && controller.skipped > 0);
+  assert.equal(started, 8);
+  assert.equal(controller.readPool.pending.size, 256);
+  assert.equal(controller.skipped, 6);
+  gate.resolve();
+  await settleRead(controller);
+  assert.equal(controller.readPool.pending.size, 0);
+  assert.equal(controller.snapshots.get(mock.uri('backlog-269.js').toString()), 'latest');
+});
+
+for (const empty of [false, true]) test(`Test Specter runs while paused${empty ? ' without a project' : ''} and leaves files and settings alone`, async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false, mode: 'follow', inspectionDisplayMs: 300 } });
+  const source = mock.uri('unchanged.js');
+  mock.put(source, 'real source');
+  if (empty) mock.vscode.workspace.workspaceFolders = [];
+  await controller.start();
+  const settings = { ...mock.config };
+  const files = [...mock.files.values()].map(file => [file.uri.toString(), file.content]);
+  const snapshots = [...controller.snapshots];
+  await mock.commands.get('codexLiveFollow.testSpecter')();
+  const demo = controller.demoJob;
+  await mock.commands.get('codexLiveFollow.testSpecter')();
+  assert.equal(controller.demoJob, demo, 'repeated clicks cannot queue extra demos');
+  await until(() => controller.getState().status === 'inspecting');
+  assert.equal(controller.getState().title, 'Testing a line inspection');
+  assert.equal(controller.getState().line, 2);
+  assert.equal(mock.shown.at(-1).editor.revealed.start.line, 1);
+  assert.ok(mock.frames.some(frame => frame.text.includes('Specter is working')));
+  assert.ok(mock.shown.every(item => item.document.uri.scheme === 'codex-live-follow'));
+  await until(() => !controller.playing && !controller.getState().testing);
+  assert.equal(mock.shown.length, 2, 'one typing preview and one inspection preview');
+  assert.equal(controller.enabled, false);
+  assert.equal(controller.replayContents.size, 0);
+  assert.equal(controller.history.entries.length, 0);
+  assert.deepEqual(mock.config, settings);
+  assert.deepEqual([...controller.snapshots], snapshots);
+  assert.deepEqual([...mock.files.values()].map(file => [file.uri.toString(), file.content]), files);
+});
+
+test('Skip and Pause stop a demo and close its read-only previews', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false, typingCharsPerSecond: 20 } });
+  await controller.start();
+  for (const command of ['skipReplay', 'pause']) {
+    const shown = mock.shown.length;
+    await mock.commands.get('codexLiveFollow.testSpecter')();
+    await until(() => mock.shown.length > shown && controller.currentJob?.progress > 0);
+    await mock.commands.get(`codexLiveFollow.${command}`)();
+    await until(() => !controller.playing && !controller.demoJob);
+    assert.equal(mock.shown.length, shown + 1, 'stopping typing must not start the sample inspection');
+    assert.equal(controller.replayContents.size, 0);
+    assert.equal(controller.enabled, false);
+  }
+});

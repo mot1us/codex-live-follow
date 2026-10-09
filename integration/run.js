@@ -36,6 +36,40 @@ async function run() {
   assert.ok((await vscode.commands.getCommands(true)).includes('codexLiveFollow.sidebar.focus'));
   console.log('PASS dedicated Specter sidebar opens in the real host');
   const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
+  await vscode.commands.executeCommand('codexLiveFollow.pause');
+  const demoSettings = await fs.readFile(path.join(root, '.vscode', 'settings.json'), 'utf8');
+  const demoFiles = await fs.readdir(root);
+  const demoFrames = [];
+  const demoSubscription = vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.document.uri.scheme === 'codex-live-follow' && event.document.uri.path.endsWith('/Specter-test.js')) {
+      demoFrames.push(event.document.getText().replace(/\r\n/g, '\n'));
+    }
+  });
+  try {
+    await vscode.commands.executeCommand('codexLiveFollow.testSpecter');
+    assert.equal(api.getState().testing, true);
+    const sampleInspectionVisible = () => vscode.window.visibleTextEditors.some(editor =>
+      editor.document.uri.scheme === 'codex-live-follow' &&
+      editor.document.uri.path.endsWith('/Specter-test.js') &&
+      editor.document.uri.query.startsWith('history=') &&
+      editor.document.getText().includes('Specter is working'));
+    await until(() => api.getState().status === 'inspecting' && api.getState().line === 2 && sampleInspectionVisible(),
+      'sample typing finishes and a line-2 inspection is displayed');
+    assert.ok(demoFrames.some(frame => frame.includes('"S') && !frame.includes('skipping this replay.')),
+      'sample generates partial typing frames even while paused');
+    assert.ok(demoFrames.some(frame => frame.includes('Specter is working')));
+    await vscode.commands.executeCommand('codexLiveFollow.skipReplay');
+    await until(() => !api.getState().testing && !vscode.window.tabGroups.all.some(group =>
+      group.tabs.some(tab => tab.input?.uri?.scheme === 'codex-live-follow')), 'sample tabs close after Skip');
+    assert.equal(api.getState().enabled, false);
+    assert.equal(api.getState().recent.length, 0);
+    assert.equal(await fs.readFile(path.join(root, '.vscode', 'settings.json'), 'utf8'), demoSettings);
+    assert.deepEqual(await fs.readdir(root), demoFiles);
+    console.log('PASS Test Specter while paused: typing, line inspection, Skip cleanup, files and settings untouched');
+  } finally {
+    demoSubscription.dispose();
+    await vscode.commands.executeCommand('codexLiveFollow.resume');
+  }
   const source = vscode.Uri.file(path.join(root, 'live-follow-host-test.js'));
   const frames = [];
   const subscription = vscode.workspace.onDidChangeTextDocument(event => {

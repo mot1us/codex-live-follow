@@ -20,12 +20,12 @@ This is a companion watcher, with no dependency on the Codex extension and no ac
 The watcher reacts to filesystem events rather than polling file contents continuously. Events are debounced per file. Each eligible changed file is read and compared as a whole; this is not a byte-level stream of edits.
 
 - Snapshots are bounded at 1,200 files and 32 MiB of UTF-8 text. Recent edits separately keep up to 20 entries or 4 MiB. These are cache bounds, not a total process-memory limit.
-- Startup, watcher events, and inspection targets share eight source-read workers. Obsolete waiting revisions are discarded before I/O. Rescans discard waiting reads and retain the limit on reads already in flight.
+- Startup, watcher events, and inspection targets share eight source-read workers and at most 256 waiting requests. New requests immediately release obsolete waiting revisions; a newer waiting save replaces the same file's older request. Overflow releases the oldest waiting request without I/O. Dropped save reads contribute to the skipped count, but cannot enter recent history because their text was never read. Rescans discard waiting reads and retain the limit on reads already in flight.
 - Files above the configured size limit, invalid UTF-8, binary content, and common dependency/build directories are skipped.
 - Typing refreshes at up to 20 frames per second for files up to 128 KiB. Larger files use longer frame intervals, up to 250 ms. Character allowance still follows elapsed time at the selected speed. At the replay deadline, the complete saved contents appear without accelerating typing.
 - Replay character limits and coarse-diff fallback are checked before allocating character arrays. The character limit applies across all changed blocks and counts Unicode code points.
 - Newer writes replace pending versions of the same file and supersede a replay of that file.
-- The pending queue is bounded at 12 jobs and 8 MiB of text; it favors recent changes when overloaded.
+- The pending queue is bounded at 12 jobs and 8 MiB of text. Saved edits play before inspections. Each project keeps only its latest pending inspection. Inspections are discarded before saved edits when overloaded; dropping a saved edit contributes to the skipped count and marks its history entry.
 
 Refreshing a virtual document sends its current text through VS Code, so large documents can cost more than the visible inserted text suggests. Recursive watchers and the initial snapshot scan also have costs on large repositories. There is no claim of measured CPU or memory usage across every project size.
 
@@ -40,3 +40,7 @@ The playback mode is selected when a job starts. Typing speed updates during the
 Each file's read revision and the workspace generation are checked around asynchronous work, so an older read or a previous workspace cannot enqueue stale content. Inspections recheck their accepted report ID after reading the target, so a slow older report cannot enqueue after a newer report. Duplicate notifications for the same report remain harmless.
 
 Cancelling playback closes the extension's owned typing preview. An editor display request already in flight cannot be cancelled through the VS Code API; if its late completion displaces the user's selected text editor, Specter restores the latest selected editor. Navigation during that restoration takes precedence too. Watchers are registered before the initial snapshot scan to cover writes during startup.
+
+## Built-in sample
+
+Test Specter schedules one explicit demo ahead of pending jobs, after the current job finishes. It uses the normal virtual-document typing and highlighting paths with sample text. The demo can run while replay is disabled or no workspace is open; it still respects background waiting, interaction cancellation, Skip, Pause, reset, and disposal. It does not change the enabled setting, write files, or enter snapshots or recent history. Duplicate requests share the one pending or active demo. All sample tabs are closed afterward.

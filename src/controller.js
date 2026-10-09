@@ -141,9 +141,9 @@ class LiveFollow {
     let status = 'watching';
     let title = 'Waiting for saves';
     let detail = 'The next saved change will show up here.';
-    if (!this.api.workspace.workspaceFolders?.length) {
+    if (!this.api.workspace.workspaceFolders?.length && !this.demoJob) {
       status = 'empty'; title = 'Open a project folder'; detail = 'Open a project to get started.';
-    } else if (!this.enabled) {
+    } else if (!this.enabled && !this.demoJob) {
       status = 'paused'; title = 'Paused'; detail = 'Enable replay to show saved edits.';
     } else if (this.initializing) {
       status = 'preparing'; title = 'Reading project files'; detail = 'Getting ready to watch for changes.';
@@ -161,12 +161,16 @@ class LiveFollow {
         title = this.currentJob.phase === 'suspect' ? 'Checking a hunch' : 'Taking a look';
         detail = this.currentJob.message;
       }
+      if (this.currentJob.demo) {
+        title = status === 'inspecting' ? 'Testing a line inspection' : 'Testing typing replay';
+        if (status === 'playing') detail = 'This is a read-only sample edit.';
+      }
     }
     const job = this.currentJob && !this.currentJob.cancelled ? this.currentJob : undefined;
     return {
       enabled: this.enabled, status, title, detail,
       configurationScope: this.api.workspace.workspaceFolders?.length ? 'workspace' : 'user',
-      file: job ? this.api.workspace.asRelativePath(job.uri, false) : '',
+      file: job ? (job.demo ? 'Specter-test.js' : this.api.workspace.asRelativePath(job.uri, false)) : '',
       line: job?.kind === 'inspection' ? job.line : null,
       pending: this.queue.length, canSkip: status === 'playing' || status === 'inspecting',
       progress: status === 'playing' && typeof job?.progress === 'number' ? job.progress : null,
@@ -177,6 +181,7 @@ class LiveFollow {
       ignoreEditorSaves: this.config('ignoreEditorSaves', true),
       replayPane: this.config('replayPane', 'current'),
       skipped: this.skipped,
+      testing: !!this.demoJob,
       recent: this.history.entries.map(entry => ({ id: entry.id,
         file: this.api.workspace.asRelativePath(entry.uri, true), time: entry.time, skipped: entry.skipped }))
     };
@@ -184,7 +189,8 @@ class LiveFollow {
 
   updateStatus() {
     if (this.disposed) return;
-    if (!this.enabled) this.status.text = '$(eye-closed) Specter: paused';
+    if (this.demoJob) this.status.text = '$(beaker) Specter: testing';
+    else if (!this.enabled) this.status.text = '$(eye-closed) Specter: paused';
     else if (!this.api.workspace.workspaceFolders?.length) this.status.text = '$(folder) Open a folder';
     else if (this.initializing) this.status.text = '$(sync~spin) Specter: starting';
     else if (this.isWaiting()) this.status.text = '$(debug-pause) Specter: waiting';
@@ -230,7 +236,11 @@ class LiveFollow {
       `codexLiveFollow.${name}`, handler
     ));
     register('toggle', () => this.setSetting('enabled', !this.enabled));
-    register('pause', () => this.setSetting('enabled', false));
+    register('pause', () => {
+      this.cancelCurrent();
+      this.demoJob = undefined;
+      return this.setSetting('enabled', false);
+    });
     register('resume', () => { this.quietUntil = 0; return this.setSetting('enabled', true); });
     this.sidebar = new FollowSidebar(this.api, this.context, this);
     this.disposables.push(this.sidebar, window.registerWebviewViewProvider(VIEW_ID, this.sidebar));
@@ -242,6 +252,7 @@ class LiveFollow {
     register('showOutput', () => this.output.show(true));
     register('ignore', uri => this.ignorePath(uri));
     register('setupInspection', () => setupInspection(this.api, this.context));
+    register('testSpecter', () => this.testSpecter());
     register('replayRecent', id => this.replayRecent(id));
     register('clearRecent', () => {
       this.history.clear();
@@ -351,7 +362,7 @@ class LiveFollow {
   }
 
   valid(job) {
-    return !this.disposed && this.enabled && !job.cancelled &&
+    return !this.disposed && (this.enabled || job.demo) && !job.cancelled &&
       job.generation === this.generation && !this.isWaiting();
   }
 
@@ -359,6 +370,7 @@ class LiveFollow {
     const generation = ++this.generation;
     this.inspections.reset();
     this.cancelCurrent();
+    this.demoJob = undefined;
     for (const watcher of this.watchers) watcher.dispose();
     this.watchers = [];
     for (const timer of this.pendingReads.values()) clearTimeout(timer);
@@ -438,7 +450,7 @@ class LiveFollow {
     return this.api.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString() && doc.isDirty);
   }
 
-  readText(uri, current = () => true) {
+  readText(uri, current = () => true, key, onOverflow) {
     const valid = () => !this.disposed && current();
     return this.readPool.run(async () => {
       try {
@@ -449,7 +461,7 @@ class LiveFollow {
         if (!valid() || bytes.byteLength > limit || bytes.includes(0)) return null;
         return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
       } catch { return null; }
-    }, valid);
+    }, valid, key, onOverflow);
   }
 
   remember(uri, text) {
@@ -501,7 +513,10 @@ class LiveFollow {
     this.reading.set(key, reads);
     try {
       const current = await this.readText(uri, () => generation === this.generation &&
-        revision === this.revisions.get(key));
+        revision === this.revisions.get(key), `write:${key}`, () => {
+          this.skipped++;
+          this.updateStatus();
+        });
       if (this.disposed || generation !== this.generation || revision !== this.revisions.get(key)) return;
       if (current === null || this.isIgnored(uri)) return;
       const previous = this.snapshots.get(key);
@@ -541,13 +556,24 @@ class LiveFollow {
   }
 
   enqueue(job) {
-    this.queue.push(job);
+    if (job.kind === 'inspection') {
+      const project = this.api.workspace.getWorkspaceFolder(job.uri)?.uri.toString();
+      this.queue = this.queue.filter(pending => pending.kind !== 'inspection' ||
+        this.api.workspace.getWorkspaceFolder(pending.uri)?.uri.toString() !== project);
+      this.queue.push(job);
+    } else {
+      const inspection = this.queue.findIndex(pending => pending.kind === 'inspection');
+      this.queue.splice(inspection < 0 ? this.queue.length : inspection, 0, job);
+    }
     let bytes = this.queue.reduce((sum, pending) => sum + pending.bytes, 0);
     while (this.queue.length > QUEUE_LIMIT || bytes > QUEUE_BYTES) {
-      const dropped = this.queue.shift();
+      const inspection = this.queue.findIndex(pending => pending.kind === 'inspection');
+      const [dropped] = this.queue.splice(inspection < 0 ? 0 : inspection, 1);
       bytes -= dropped.bytes;
-      this.skipped++;
-      this.history.markSkipped(dropped.historyId);
+      if (dropped.kind !== 'inspection') {
+        this.skipped++;
+        this.history.markSkipped(dropped.historyId);
+      }
     }
     this.updateStatus();
     void this.playQueue();
@@ -569,16 +595,32 @@ class LiveFollow {
   }
 
   async playQueue() {
-    if (this.playing || this.initializing || this.disposed || !this.enabled || this.isWaiting()) return;
+    if (this.playing || this.initializing || this.disposed ||
+      (!this.enabled && !this.demoJob) || this.isWaiting()) return;
     this.playing = true;
     try {
-      while (this.queue.length && this.enabled && !this.disposed && !this.initializing && !this.isWaiting()) {
-        const job = this.queue.shift();
-        if (job.generation !== this.generation || this.isDirty(job.uri) || this.isIgnored(job.uri)) continue;
+      while (((this.queue.length && this.enabled) || this.demoJob) &&
+        !this.disposed && !this.initializing && !this.isWaiting()) {
+        const job = this.demoJob || this.queue.shift();
+        if (job.generation !== this.generation || (!job.demo && (this.isDirty(job.uri) || this.isIgnored(job.uri)))) {
+          if (this.demoJob === job) this.demoJob = undefined;
+          continue;
+        }
         this.currentJob = job;
         this.updateStatus();
         try {
-          if (job.kind === 'inspection') {
+          if (job.demo) {
+            await this.playTyping(job);
+            if (this.valid(job) && !job.skip) {
+              job.kind = 'inspection';
+              job.line = 2;
+              job.phase = 'inspect';
+              job.message = 'This sample inspection highlights line 2.';
+              this.updateStatus();
+              await this.showChange(job, { start: 1, end: 2 });
+            }
+            continue;
+          } else if (job.kind === 'inspection') {
             await this.showChange(job, { start: job.line - 1, end: job.endLine });
             continue;
           }
@@ -590,6 +632,7 @@ class LiveFollow {
         } catch (error) {
           this.log(`Could not show ${this.api.workspace.asRelativePath(job.uri)}: ${String(error)}`);
         } finally {
+          if (this.demoJob === job) this.demoJob = undefined;
           this.currentJob = undefined;
         }
       }
@@ -597,7 +640,8 @@ class LiveFollow {
       this.playing = false;
       this.updateStatus();
       // A reset or config change may have enqueued work while this job unwound.
-      if (this.queue.length && !this.initializing && !this.disposed && this.enabled && !this.isWaiting()) {
+      if (((this.queue.length && this.enabled) || this.demoJob) &&
+        !this.initializing && !this.disposed && !this.isWaiting()) {
         void this.playQueue();
       }
     }
@@ -812,6 +856,21 @@ class LiveFollow {
       bytes: entry.bytes, generation: this.generation, historical: true });
   }
 
+  testSpecter() {
+    if (this.disposed || this.demoJob) return;
+    // The sample uses only virtual documents; it never enters snapshots or history.
+    this.demoJob = {
+      uri: this.api.Uri.joinPath(this.context.extensionUri, 'Specter-test.js').with({ scheme: SCHEME }),
+      before: '// Specter test\nconst message = "Hello";\n\nconsole.log(message);\n',
+      after: '// Specter test\nconst message = "Specter is working. Try changing the speed or skipping this replay.";\n\nconsole.log(message);\n',
+      generation: this.generation, demo: true, historical: true
+    };
+    clearTimeout(this.idleTimer);
+    this.quietUntil = 0;
+    this.updateStatus();
+    void this.playQueue();
+  }
+
   async ignorePath(uri) {
     uri ||= this.api.window.activeTextEditor?.document.uri;
     if (!uri || uri.scheme !== 'file') return;
@@ -856,6 +915,7 @@ class LiveFollow {
     this.disposed = true;
     this.generation++;
     this.cancelCurrent();
+    this.demoJob = undefined;
     clearTimeout(this.idleTimer);
     this.clearHighlight();
     for (const watcher of this.watchers) watcher.dispose();

@@ -164,3 +164,46 @@ test('duplicate report notifications do not invalidate an inspection being check
   await until(() => controller.queue.length > 0);
   assert.deepEqual(controller.queue.map(job => job.id), ['first']);
 });
+
+test('inspection bursts keep only the latest pending report without displacing saved edits', async t => {
+  const { mock, controller, signal } = await fixture(t);
+  mock.events.windowState.fire({ focused: false });
+  for (let i = 0; i < 8; i++) mock.write(mock.uri(`saved-${i}.js`), 'saved edit', true);
+  await until(() => controller.queue.length === 8);
+  for (let i = 0; i < 12; i++) {
+    mock.write(signal, JSON.stringify(report({ id: `report-${i}` })), i === 0);
+    await until(() => controller.queue.some(job => job.id === `report-${i}`));
+  }
+  assert.equal(controller.queue.filter(job => job.kind !== 'inspection').length, 8);
+  assert.deepEqual(controller.queue.filter(job => job.kind === 'inspection').map(job => job.id), ['report-11']);
+  assert.equal(controller.skipped, 0);
+  mock.write(mock.uri('last-save.js'), 'new saved edit', true);
+  await until(() => controller.queue.length === 10);
+  assert.equal(controller.queue.at(-1).id, 'report-11', 'a later saved edit plays before the pending inspection');
+});
+
+test('an inspection cannot evict a saved edit from a full queue', async t => {
+  const { mock, controller, signal } = await fixture(t);
+  mock.events.windowState.fire({ focused: false });
+  for (let i = 0; i < 12; i++) mock.write(mock.uri(`full-${i}.js`), 'saved edit', true);
+  await until(() => controller.queue.length === 12);
+  mock.write(signal, JSON.stringify(report()), true);
+  await until(() => controller.inspections.seen.get(signal.toString()) === 'first');
+  await until(() => controller.readPool.active === 0);
+  assert.equal(controller.queue.length, 12);
+  assert.ok(controller.queue.every(job => job.kind !== 'inspection'));
+  assert.equal(controller.skipped, 0);
+});
+
+test('each workspace root retains its own latest pending inspection', async t => {
+  const { mock, controller, uri } = await fixture(t);
+  const other = { uri: mock.vscode.Uri.file('/other'), name: 'other', index: 1 };
+  mock.vscode.workspace.workspaceFolders.push(other);
+  const target = mock.vscode.Uri.joinPath(other.uri, 'bug.js');
+  mock.put(target, 'other source');
+  mock.events.windowState.fire({ focused: false });
+  await controller.handleInspection({ ...report(), uri, generation: controller.generation });
+  await controller.handleInspection({ ...report({ id: 'other' }), uri: target, generation: controller.generation });
+  await controller.handleInspection({ ...report({ id: 'latest' }), uri, generation: controller.generation });
+  assert.deepEqual(controller.queue.map(job => job.id), ['other', 'latest']);
+});

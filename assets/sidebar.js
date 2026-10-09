@@ -35,7 +35,7 @@
   element('replayPane').addEventListener('change', event => {
     send({ type: 'setting', key: 'replayPane', value: event.target.value });
   });
-  for (const action of ['skip', 'settings', 'output', 'clear', 'setup']) {
+  for (const action of ['skip', 'settings', 'output', 'clear', 'setup', 'test']) {
     element(action).addEventListener('click', () => send({ type: 'action', action }));
   }
 
@@ -94,6 +94,8 @@
     update('skipped', 'textContent', state.skipped
       ? `${state.skipped} skipped while catching up. Check recent edits.` : '');
     update('skip', 'disabled', !state.canSkip);
+    update('test', 'disabled', state.testing);
+    update('test', 'textContent', state.testing ? 'Testing…' : 'Test Specter');
     update('progress', 'hidden', state.progress === null);
     update('progress', 'value', state.progress ?? 0);
     for (const key of settings) {
