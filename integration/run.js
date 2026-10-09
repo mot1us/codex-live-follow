@@ -47,6 +47,7 @@ async function run() {
     }
   });
   try {
+    const demoStarted = Date.now();
     await vscode.commands.executeCommand('codexLiveFollow.testSpecter');
     assert.equal(api.getState().testing, true);
     const sampleInspectionVisible = () => vscode.window.visibleTextEditors.some(editor =>
@@ -55,8 +56,9 @@ async function run() {
       editor.document.uri.query.startsWith('history=') &&
       editor.document.getText().includes('Specter is working'));
     await until(() => api.getState().status === 'inspecting' && api.getState().line === 2 && sampleInspectionVisible(),
-      'sample typing finishes and a line-2 inspection is displayed');
-    assert.ok(demoFrames.some(frame => frame.includes('"S') && !frame.includes('console.log(feature);')),
+      '30-second sample typing finishes and a line-2 inspection is displayed', 45000);
+    assert.ok(Date.now() - demoStarted >= 30000, 'demo must not finish at the normal one-second replay limit');
+    assert.ok(demoFrames.some(frame => frame.includes('"S') && !frame.includes('console.log(item.label);')),
       `sample generates partial typing frames even while paused; observed ${JSON.stringify(demoFrames)}`);
     assert.ok(demoFrames.some(frame => frame.includes('Specter is working')));
     await vscode.commands.executeCommand('codexLiveFollow.skipReplay');

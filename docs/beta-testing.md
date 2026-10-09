@@ -40,8 +40,10 @@ automated checks. Independent tester feedback still needs to be collected.
 
 ## New controls to try
 
-- Click Test Specter while paused, then without a project open. Expect a sample
-  typing replay followed by a line-2 inspection, with no file or setting changes.
+- Click Test Specter while paused, then without a project open. Expect 30 seconds
+  of typing followed by a 5-second line-2 inspection, with no file or setting changes.
+- Move the speed slider during the demo; typing should change speed while the
+  progress bar continues counting demo time.
 - Stop the sample using Skip current or Pause Replay; its preview tabs should close.
 - Background VS Code while saved edits and inspections arrive. Only the latest
   inspection per project should wait, and saved edits should play first.

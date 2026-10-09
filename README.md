@@ -18,10 +18,11 @@ This is beta for now! [Let me know if you find any issues](https://github.com/mo
 Open **Specter** in the activity bar for controls. Each project remembers
 whether replay is on or paused.
 
-Click **Test Specter** in the sidebar to try a sample typing replay and line
-inspection. It works while paused and without a project open. The sample is
-read-only and leaves your files, recent edits, and settings alone. Use **Skip
-current** or **Pause Replay** to stop it.
+Click **Test Specter** in the sidebar for 30 seconds of typing at your chosen
+speed, followed by a 5-second line inspection. Try the speed slider during the
+demo, or use **Skip current** or **Pause Replay** to stop it. It works while paused
+and without a project open. The sample is read-only and leaves your files,
+recent edits, and settings alone.
 
 Needs desktop VS Code 1.96 or newer. This beta supports local folders on
 macOS, Windows, and Linux. No build tools or API key needed to install it.

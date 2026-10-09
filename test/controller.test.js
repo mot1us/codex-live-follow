@@ -786,8 +786,19 @@ test('a stalled watcher backlog remains bounded and reports dropped saves', asyn
   assert.equal(controller.snapshots.get(mock.uri('backlog-269.js').toString()), 'latest');
 });
 
-for (const empty of [false, true]) test(`Test Specter runs while paused${empty ? ' without a project' : ''} and leaves files and settings alone`, async t => {
-  const { mock, controller } = fixture(t, { config: { enabled: false, mode: 'follow', inspectionDisplayMs: 300 } });
+for (const [empty, speed] of [[false, 400], [true, 20]]) test(`Test Specter runs while paused at ${speed} chars/s${empty ? ' without a project' : ''} and leaves files and settings alone`, async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  const advance = async ms => {
+    for (let elapsed = 0; elapsed < ms;) {
+      const step = Math.min(50, ms - elapsed);
+      t.mock.timers.tick(step);
+      elapsed += step;
+      await tick();
+    }
+  };
+  const { mock, controller } = fixture(t, { config: {
+    enabled: false, mode: 'follow', typingCharsPerSecond: speed, inspectionDisplayMs: 300, maxReplayCharacters: 100
+  } });
   const source = mock.uri('unchanged.js');
   mock.put(source, 'real source');
   if (empty) mock.vscode.workspace.workspaceFolders = [];
@@ -799,13 +810,24 @@ for (const empty of [false, true]) test(`Test Specter runs while paused${empty ?
   const demo = controller.demoJob;
   await mock.commands.get('codexLiveFollow.testSpecter')();
   assert.equal(controller.demoJob, demo, 'repeated clicks cannot queue extra demos');
-  await until(() => controller.getState().status === 'inspecting');
+  await tick();
+  await advance(29500);
+  assert.equal(controller.getState().status, 'playing', 'demo keeps typing even with a one-second normal replay limit');
+  assert.equal(controller.getState().progress, 98, 'demo progress follows elapsed time');
+  assert.notEqual(controller.currentJob.displayedText, demo.after, 'enough sample text remains at the selected speed');
+  for (let elapsed = 0; controller.getState().status !== 'inspecting' && elapsed < 1500; elapsed += 50) {
+    await advance(50);
+  }
   assert.equal(controller.getState().title, 'Testing a line inspection');
   assert.equal(controller.getState().line, 2);
   assert.equal(mock.shown.at(-1).editor.revealed.start.line, 1);
   assert.ok(mock.frames.some(frame => frame.text.includes('Specter is working')));
   assert.ok(mock.shown.every(item => item.document.uri.scheme === 'codex-live-follow'));
-  await until(() => !controller.playing && !controller.getState().testing);
+  await advance(4999);
+  assert.equal(controller.getState().status, 'inspecting', 'sample inspection stays visible for five seconds');
+  await advance(1);
+  assert.equal(controller.playing, false);
+  assert.equal(controller.getState().testing, false);
   assert.equal(mock.shown.length, 2, 'one typing preview and one inspection preview');
   assert.equal(controller.enabled, false);
   assert.equal(controller.replayContents.size, 0);

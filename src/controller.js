@@ -9,6 +9,7 @@ const { setupInspection } = require('./setup');
 const { FollowSidebar, VIEW_ID } = require('./sidebar');
 const { InspectionFeed } = require('./inspection');
 const { ReadPool } = require('./read-pool');
+const demo = require('./demo');
 
 const SNAPSHOT_LIMIT = 1200;
 const SNAPSHOT_BYTES = 32 * 1024 * 1024;
@@ -163,7 +164,7 @@ class LiveFollow {
       }
       if (this.currentJob.demo) {
         title = status === 'inspecting' ? 'Testing a line inspection' : 'Testing typing replay';
-        if (status === 'playing') detail = 'This is a read-only sample edit.';
+        if (status === 'playing') detail = '30-second demo. Try the speed slider or Skip current.';
       }
     }
     const job = this.currentJob && !this.currentJob.cancelled ? this.currentJob : undefined;
@@ -717,7 +718,7 @@ class LiveFollow {
       editor.revealRange(range, this.api.TextEditorRevealType.InCenterIfOutsideViewport);
       editor.setDecorations(this.highlight, [range]);
       this.highlightedEditor = editor;
-      const displayMs = job.kind === 'inspection'
+      const displayMs = job.demo ? demo.inspectionMs : job.kind === 'inspection'
         ? this.numberConfig('inspectionDisplayMs', 1500, 300, 10000)
         : this.numberConfig('minimumDisplayMs', 450, 100, 5000);
       this.highlightTimer = setTimeout(() => this.clearHighlight(),
@@ -746,7 +747,7 @@ class LiveFollow {
   async playTyping(job) {
     if (!this.valid(job) || this.isDirty(job.uri)) return;
     const stages = makeReplayStages(job.before, job.after,
-      this.numberConfig('maxReplayCharacters', 20000, 100, 100000));
+      job.demo ? demo.maxCharacters : this.numberConfig('maxReplayCharacters', 20000, 100, 100000));
     const count = stages.reduce((sum, stage) => sum + stage.typed.length, 0);
     if (!count || stages.some(stage => stage.limited) || this.replayContents.size >= 8) {
       if (count || stages.some(stage => stage.limited)) this.log('Change exceeds replay limits; showing changed lines directly.');
@@ -767,7 +768,7 @@ class LiveFollow {
       if (!editor) return;
       job.progress = 0;
       this.updateStatus();
-      const duration = this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000);
+      const duration = job.demo ? demo.durationMs : this.numberConfig('maxReplayDurationMs', 12000, 1000, 60000);
       const started = Date.now();
       const frameMs = Math.min(250, Math.max(FRAME_MS,
         Math.ceil(Math.max(Buffer.byteLength(job.before), Buffer.byteLength(job.after)) / FRAME_BYTES) * FRAME_MS));
@@ -810,7 +811,8 @@ class LiveFollow {
           else column += chunk.length;
           written += chunk;
           index = next;
-          job.progress = Math.floor((completed + index) * 100 / count);
+          job.progress = job.demo ? Math.min(99, Math.floor((now - started) * 100 / duration))
+            : Math.floor((completed + index) * 100 / count);
           job.displayedText = written + tail;
           this.replayContents.set(key, job.displayedText);
           this.replayEmitter.fire(uri);
@@ -861,8 +863,8 @@ class LiveFollow {
     // The sample uses only virtual documents; it never enters snapshots or history.
     this.demoJob = {
       uri: this.api.Uri.joinPath(this.context.extensionUri, 'Specter-test.js').with({ scheme: SCHEME }),
-      before: '// Specter test\nconst message = "Hello";\n\nconsole.log(message);\n',
-      after: '// Specter test\nconst message = "Specter is working";\nconst features = ["Typing replay", "Line inspections", "Skip and Pause"];\n\nfor (const feature of features) {\n  console.log(feature);\n}\n\nconsole.log(message);\n',
+      before: demo.before,
+      after: demo.after,
       generation: this.generation, demo: true, historical: true
     };
     clearTimeout(this.idleTimer);

@@ -128,7 +128,7 @@ class FollowSidebar {
 
     <section class="demo" aria-label="Test Specter">
       <button id="test" class="secondary-button" disabled>Test Specter</button>
-      <p class="hint">Try a sample typing replay and line inspection. Works while paused.</p>
+      <p class="hint">30 seconds of typing, then a 5-second line inspection. Try the speed slider or Skip current. Works while paused.</p>
     </section>
 
     <section class="controls" aria-label="Playback controls">

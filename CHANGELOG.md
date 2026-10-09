@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- Extend Test Specter to a 30-second typing demo followed by a 5-second line inspection.
+- Keep enough bounded sample text to try the speed slider even at the fastest setting.
+- Give the demo its own duration and character limits, with progress showing elapsed demo time.
+
 ## 0.9.3
 
 - Keep the latest pending inspection per project and prioritize saved-edit replays.

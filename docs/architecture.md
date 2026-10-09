@@ -43,4 +43,6 @@ Cancelling playback closes the extension's owned typing preview. An editor displ
 
 ## Built-in sample
 
-Test Specter schedules one explicit demo ahead of pending jobs, after the current job finishes. It uses the normal virtual-document typing and highlighting paths with sample text. The demo can run while replay is disabled or no workspace is open; it still respects background waiting, interaction cancellation, Skip, Pause, reset, and disposal. It does not change the enabled setting, write files, or enter snapshots or recent history. Duplicate requests share the one pending or active demo. All sample tabs are closed afterward.
+Test Specter schedules one explicit demo ahead of pending jobs, after the current job finishes. It uses the normal virtual-document typing and highlighting paths with a bounded sample in `src/demo.js`. Typing runs for 30 seconds at the selected speed, then the sample inspection stays visible for 5 seconds. The sample has enough characters for the fastest speed and uses its own 20,000-character limit and duration, independently of normal replay limits. Demo progress shows elapsed time; normal replay progress still follows characters typed.
+
+The demo can run while replay is disabled or no workspace is open; it still respects background waiting, interaction cancellation, Skip, Pause, reset, and disposal. It does not change the enabled setting, write files, or enter snapshots or recent history. Duplicate requests share the one pending or active demo. All sample tabs are closed afterward.
