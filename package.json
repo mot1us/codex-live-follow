@@ -2,7 +2,7 @@
   "name": "codex-live-follow",
   "displayName": "Specter",
   "description": "Replays saved file changes as typing in VS Code. Runs locally, with no AI or network connection.",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "publisher": "mot1us",
   "license": "MIT",
   "engines": {
@@ -183,6 +183,11 @@
           "type": "boolean",
           "default": true,
           "description": "Pause while you type, click, or switch files."
+        },
+        "codexLiveFollow.suspendWhenPaused": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop file watching and release source baselines when replay is paused. Resume scans the current files without replaying edits made while paused. Turn off to keep baselines updated during pause."
         },
         "codexLiveFollow.idleDelayMs": {
           "type": "number",

@@ -18,6 +18,11 @@ This is beta for now! [Let me know if you find any issues](https://github.com/mo
 Open **Specter** in the activity bar for controls. Each project remembers
 whether replay is on or paused.
 
+Pause stops file watching and releases source baselines by default. Resume reads
+the current files without playing edits made while paused. Recent edits remain
+available after resuming. Turn off **Stop watching files when paused** to keep
+baselines updated during pause.
+
 Click **Test Specter** in the sidebar for 30 seconds of typing at your chosen
 speed, followed by a 5-second line inspection. Try the speed slider during the
 demo, or use **Skip current** or **Pause Replay** to stop it. It works while paused

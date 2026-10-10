@@ -4,7 +4,7 @@ const { randomBytes } = require('node:crypto');
 
 const VIEW_ID = 'codexLiveFollow.sidebar';
 const BOOLEAN_SETTINGS = new Set([
-  'enabled', 'pauseOnInteraction', 'pauseWhenUnfocused', 'ignoreEditorSaves'
+  'enabled', 'pauseOnInteraction', 'pauseWhenUnfocused', 'ignoreEditorSaves', 'suspendWhenPaused'
 ]);
 
 class FollowSidebar {
@@ -143,6 +143,7 @@ class FollowSidebar {
       <label class="check-row"><input id="pauseOnInteraction" type="checkbox" disabled><span>Pause while I edit</span></label>
       <label class="check-row"><input id="pauseWhenUnfocused" type="checkbox" disabled><span>Wait while VS Code is in the background</span></label>
       <label class="check-row"><input id="ignoreEditorSaves" type="checkbox" disabled><span>Skip my saves in this window</span></label>
+      <label class="check-row"><input id="suspendWhenPaused" type="checkbox" disabled><span>Stop watching files when paused</span></label>
     </section>
 
     <p id="error" role="alert" hidden></p>

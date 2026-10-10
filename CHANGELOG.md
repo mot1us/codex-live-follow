@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.5
+
+- Debounce saved-file bursts with one timer and at most 256 waiting files.
+- Stop file watching and release source baselines while manually paused by default;
+  resume establishes current baselines without replaying paused changes. Recent
+  history survives pause. The new option can retain baseline updates during pause.
+- Check editor model size before reading full text and hashing saves; skip paused saves.
+- Stream startup paths with exclusions before the file allowance and prune ignored trees.
+- Remove descendant snapshots and pending playback when a folder is deleted, including stale bootstrap reads.
+- Keep the demo speed slider available in Changed lines mode.
+- Remove the unused replay-plan helper and icon source; extract debounce, startup scanning, and save guards.
+- Add regression tests and packaged-host CPU profiles with explicit measurement scope.
+
 ## 0.9.4
 
 - Extend Test Specter to a 30-second typing demo followed by a 5-second line inspection.

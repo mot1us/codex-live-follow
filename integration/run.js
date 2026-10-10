@@ -278,6 +278,9 @@ async function run() {
     await vscode.commands.executeCommand('codexLiveFollow.pause');
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }
+  if (process.env.SPECTER_PROFILE_DIR) {
+    await require('./profile').runProfile(vscode, api, extension, process.env.SPECTER_PROFILE_DIR);
+  }
 }
 
 module.exports = { run };

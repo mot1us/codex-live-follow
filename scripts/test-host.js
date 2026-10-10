@@ -68,7 +68,7 @@ async function main() {
         `--extensions-dir=${extensions}`,
       ],
       // An editor's terminal may set this variable; launch an actual VS Code UI.
-      extensionTestsEnv: { ELECTRON_RUN_AS_NODE: undefined },
+      extensionTestsEnv: { ELECTRON_RUN_AS_NODE: undefined, SPECTER_PROFILE_DIR: process.env.SPECTER_PROFILE_DIR },
     });
   } finally {
     // Retry briefly for Windows, where the closing host may still hold files.

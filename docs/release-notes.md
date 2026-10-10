@@ -11,10 +11,15 @@ This is beta for now! Let me know if you find any issues.
 
 ### This update
 
-- Fixed the typing speed slider. It updates the running replay while you drag.
-- Long edits keep your chosen speed instead of silently speeding up.
-- At the replay time limit, the complete saved file is shown. The default is
-  12 seconds; increase Max Replay Duration in settings for longer playback.
+- Pause stops file watching and releases source baselines by default. Resume
+  reads the current files without replaying edits made while paused. Recent edits
+  remain available. Turn off **Stop watching files when paused** to retain the old behavior.
+- File bursts use one timer with bounded storage before entering the read queue.
+- Oversized editor saves no longer read or hash the full model. Startup exclusions
+  apply before the file limit, and folder deletions clear queued child edits.
+- The 30-second demo's speed slider also works in Changed lines mode.
+- Removed the unused replay helper and icon asset. Added regression coverage and
+  CPU profiles from the packaged extension's disposable CI host.
 
 ### Install
 

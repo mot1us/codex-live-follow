@@ -54,11 +54,17 @@ a fix, increment the version and release a new package.
 - Resolve publisher registration and confirm the identity is controlled by the owner.
 - Collect successful everyday-use feedback from 3–5 independent testers and fix
   installation or source editing problems. See [beta testing](beta-testing.md).
-- Add guided inspection setup. Keep manual beta instructions available.
+- Verify guided inspection setup and keep manual instructions available.
 - Record a short demo with disposable source, including replay and pause.
 - Keep the independent-companion disclosure, MIT attribution, repository links,
   and accurate local-folder support scope. Test remote environments before extending it.
 - Enable private vulnerability reporting if that will be the repository's reporting channel.
+- Review the packaged host's `specter-performance` CI artifact and test everyday
+  editor use before treating its measurements as representative. See [performance](performance.md).
+
+Microsoft's current publishing guidance recommends Microsoft Entra authentication
+for automation. Global Azure DevOps PATs retire December 1, 2026; choose the
+authentication flow from the current official guide when setting up the accounts.
 
 Follow VS Code's [official publishing guide](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
 for current publisher registration and authentication. Marketplace publication is

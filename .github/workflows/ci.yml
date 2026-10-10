@@ -83,6 +83,15 @@ jobs:
       - run: npm run package
       - name: Install and exercise the exact VSIX in a fresh profile
         run: xvfb-run -a npm run test:packaged
+        env:
+          SPECTER_PROFILE_DIR: ${{ runner.temp }}/specter-profile
+      - name: Keep packaged-extension CPU profiles and memory measurements
+        uses: actions/upload-artifact@v7
+        with:
+          name: specter-performance
+          path: ${{ runner.temp }}/specter-profile
+          if-no-files-found: error
+          retention-days: 14
       - name: Verify installable archive and checksum
         working-directory: dist
         run: |

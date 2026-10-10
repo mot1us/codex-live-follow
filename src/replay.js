@@ -31,15 +31,6 @@ function replayBounds(before, after) {
   return { prefix, end, suffix };
 }
 
-function makeReplayPlan(before, after) {
-  const { prefix, end } = replayBounds(before, after);
-  return {
-    head: after.slice(0, prefix),
-    typed: Array.from(after.slice(prefix, end)),
-    tail: after.slice(end)
-  };
-}
-
 function makeReplayStages(before, after, maxCharacters = Infinity) {
   const stages = changedBlocks(before, after).map(block => {
     const old = before.slice(block.oldStart, block.oldEnd);
@@ -70,4 +61,4 @@ function makeReplayStages(before, after, maxCharacters = Infinity) {
     : { ...stage, typed: Array.from(text) });
 }
 
-module.exports = { makeReplayPlan, makeReplayStages };
+module.exports = { makeReplayStages };

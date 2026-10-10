@@ -10,7 +10,7 @@
     if (node[property] !== value) node[property] = value;
   };
   let latestState;
-  const settings = ['enabled', 'pauseOnInteraction', 'pauseWhenUnfocused', 'ignoreEditorSaves'];
+  const settings = ['enabled', 'pauseOnInteraction', 'pauseWhenUnfocused', 'ignoreEditorSaves', 'suspendWhenPaused'];
   const send = message => {
     element('error').hidden = true;
     api.postMessage(message);
@@ -106,7 +106,7 @@
     update('mode', 'disabled', false);
     update('replayPane', 'value', state.replayPane);
     update('replayPane', 'disabled', false);
-    update('speed', 'disabled', state.mode !== 'typing');
+    update('speed', 'disabled', state.mode !== 'typing' && !state.testing);
     if (document.activeElement !== speed) updateSpeed(state);
     renderRecent(state);
   }

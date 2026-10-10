@@ -1,6 +1,6 @@
 'use strict';
 
-const { createHash } = require('node:crypto');
+const { digest, documentFingerprint } = require('./editor-save');
 const { changedHunks } = require('./diff');
 const { makeReplayStages } = require('./replay');
 const { RecentEdits } = require('./history');
@@ -9,6 +9,8 @@ const { setupInspection } = require('./setup');
 const { FollowSidebar, VIEW_ID } = require('./sidebar');
 const { InspectionFeed } = require('./inspection');
 const { ReadPool } = require('./read-pool');
+const { DebouncedReads } = require('./debounce');
+const { sourceFiles, SKIP_DIRECTORIES } = require('./source-scan');
 const demo = require('./demo');
 
 const SNAPSHOT_LIMIT = 1200;
@@ -19,11 +21,6 @@ const FRAME_MS = 50;
 const READ_LIMIT = 8;
 const FRAME_BYTES = 128 * 1024;
 const SCHEME = 'codex-live-follow';
-const SKIP_DIRECTORIES = new Set([
-  '.git', 'node_modules', 'dist', 'build', 'out', '.next', '.venv',
-  'venv', 'target', 'coverage', '__pycache__', '.vscode-test', '.cache', '.vscode', '.codex-live-follow'
-]);
-const digest = text => createHash('sha256').update(text).digest('hex');
 
 class LiveFollow {
   constructor(vscode, context) {
@@ -35,7 +32,14 @@ class LiveFollow {
     this.reading = new Map();
     this.readPool = new ReadPool(READ_LIMIT);
     this.readSerial = 0;
-    this.pendingReads = new Map();
+    this.scanning = new Map();
+    this.debounce = new DebouncedReads(reads => {
+      this.updateStatus();
+      for (const { uri, revision, generation } of reads) {
+        void this.handleWrite(uri, revision, generation).catch(error => this.log(`Read failed: ${String(error)}`));
+      }
+    }, key => { this.skipped++; this.releaseRevision(key); });
+    this.pendingReads = this.debounce.pending;
     this.savedByEditor = new Map();
     this.queue = [];
     this.history = new RecentEdits();
@@ -180,6 +184,7 @@ class LiveFollow {
       pauseOnInteraction: this.config('pauseOnInteraction', true),
       pauseWhenUnfocused: this.config('pauseWhenUnfocused', true),
       ignoreEditorSaves: this.config('ignoreEditorSaves', true),
+      suspendWhenPaused: this.config('suspendWhenPaused', true),
       replayPane: this.config('replayPane', 'current'),
       skipped: this.skipped,
       testing: !!this.demoJob,
@@ -215,7 +220,7 @@ class LiveFollow {
     } finally {
       if (key === 'typingCharsPerSecond' && this.liveSpeed === value) this.clearSpeedPreview();
     }
-    if (key === 'enabled') this.applyConfiguration();
+    if (key === 'enabled' || key === 'suspendWhenPaused') await this.applyConfiguration();
   }
 
   async start() {
@@ -277,13 +282,14 @@ class LiveFollow {
           event.affectsConfiguration('codexLiveFollow.maxFileSizeKB')) void this.resetWorkspace();
       }),
       workspace.onDidSaveTextDocument(document => {
-        if (!this.config('ignoreEditorSaves', true) || this.isIgnored(document.uri)) return;
+        if (!this.enabled || !this.config('ignoreEditorSaves', true) || this.isIgnored(document.uri)) return;
         const key = document.uri.toString();
         this.queue = this.queue.filter(job => job.uri.toString() !== key);
         if (this.currentJob?.uri.toString() === key) this.cancelCurrent();
-        this.savedByEditor.set(key, {
-          hash: digest(document.getText()), expires: Date.now() + 10000
-        });
+        const hash = documentFingerprint(this.api, document,
+          this.numberConfig('maxFileSizeKB', 512, 16, 4096) * 1024);
+        this.savedByEditor.delete(key);
+        if (hash) this.savedByEditor.set(key, { hash, expires: Date.now() + 10000 });
         while (this.savedByEditor.size > SNAPSHOT_LIMIT) {
           this.savedByEditor.delete(this.savedByEditor.keys().next().value);
         }
@@ -330,8 +336,14 @@ class LiveFollow {
     if (this.enabled !== enabled) this.cancelCurrent();
     this.enabled = enabled;
     if (!this.enabled) { this.queue.length = 0; this.clearHighlight(); }
+    const suspended = !this.enabled && this.config('suspendWhenPaused', true);
+    if (this.watchSuspended !== suspended) {
+      this.workspaceReset = this.resetWorkspace({ preserveHistory: true });
+      return this.workspaceReset;
+    }
     this.updateStatus();
     if (this.enabled) void this.playQueue();
+    return this.workspaceReset;
   }
 
   userActivity(reason = 'editor interaction') {
@@ -367,30 +379,30 @@ class LiveFollow {
       job.generation === this.generation && !this.isWaiting();
   }
 
-  async resetWorkspace() {
+  async resetWorkspace({ preserveHistory = false } = {}) {
     const generation = ++this.generation;
     this.inspections.reset();
     this.cancelCurrent();
     this.demoJob = undefined;
     for (const watcher of this.watchers) watcher.dispose();
     this.watchers = [];
-    for (const timer of this.pendingReads.values()) clearTimeout(timer);
-    this.pendingReads.clear();
+    this.debounce.clear();
     this.readPool.clear();
     this.revisions.clear();
     this.reading.clear();
+    this.scanning.clear();
     this.snapshots.clear();
     this.savedByEditor.clear();
     this.trackedBytes = 0;
     this.queue.length = 0;
-    this.history.clear();
-    this.skipped = 0;
+    if (!preserveHistory) { this.history.clear(); this.skipped = 0; }
     this.globCache.clear();
     this.clearHighlight();
     const folders = [...(this.api.workspace.workspaceFolders || [])];
-    this.initializing = folders.length > 0;
+    this.watchSuspended = !this.enabled && this.config('suspendWhenPaused', true);
+    this.initializing = folders.length > 0 && !this.watchSuspended;
     this.updateStatus();
-    if (!folders.length || this.disposed) return;
+    if (!folders.length || this.disposed || this.watchSuspended) return;
     // Subscribe first so file writes during the initial scan are not missed.
     for (const folder of folders) {
       const watcher = this.api.workspace.createFileSystemWatcher(new this.api.RelativePattern(folder, '**/*'));
@@ -400,22 +412,23 @@ class LiveFollow {
       this.watchers.push(watcher);
     }
     try {
-      const files = await this.api.workspace.findFiles('**/*',
-        '**/{.git,node_modules,dist,build,out,.next,.venv,venv,target,coverage,__pycache__,.vscode-test,.cache,.vscode,.codex-live-follow}/**',
-        SNAPSHOT_LIMIT);
-      if (this.disposed || generation !== this.generation) return;
-      let next = 0;
+      const current = () => !this.disposed && generation === this.generation;
+      const files = sourceFiles(this.api, folders, (uri, directory) => this.isIgnored(uri, directory), SNAPSHOT_LIMIT, current);
       await Promise.all(Array.from({ length: READ_LIMIT }, async () => {
-        while (next < files.length && !this.disposed && generation === this.generation) {
-          const uri = files[next++];
-          if (this.isIgnored(uri)) continue;
+        while (current()) {
+          const { value: uri, done } = await files.next();
+          if (done || !current()) return;
           const key = uri.toString();
           const revision = this.revisions.get(key);
-          const text = await this.readText(uri, () => generation === this.generation &&
-            revision === this.revisions.get(key));
-          if (this.disposed || generation !== this.generation) return;
-          if (text !== null && revision === this.revisions.get(key) && !this.snapshots.has(key)) {
-            this.remember(uri, text);
+          const token = Symbol();
+          this.scanning.set(key, token);
+          try {
+            const text = await this.readText(uri, () => current() && revision === this.revisions.get(key));
+            if (!current()) return;
+            if (text !== null && revision === this.revisions.get(key) && !this.snapshots.has(key)) this.remember(uri, text);
+          } finally {
+            if (this.scanning.get(key) === token) this.scanning.delete(key);
+            this.releaseRevision(key);
           }
         }
       }));
@@ -431,7 +444,7 @@ class LiveFollow {
     }
   }
 
-  isIgnored(uri) {
+  isIgnored(uri, directory = false) {
     if (uri.scheme === SCHEME || !this.api.workspace.getWorkspaceFolder(uri)) return true;
     const folder = this.api.workspace.getWorkspaceFolder(uri);
     const relative = uri.path.slice(folder.uri.path.length + 1);
@@ -439,12 +452,17 @@ class LiveFollow {
     const signature = JSON.stringify(patterns);
     if (!this.globCache.has(signature)) {
       if (this.globCache.size >= 20) this.globCache.clear();
-      this.globCache.set(signature, compileGlobs(patterns));
+      this.globCache.set(signature, {
+        file: compileGlobs(patterns),
+        directory: compileGlobs((Array.isArray(patterns) ? patterns : []).filter(pattern =>
+          typeof pattern === 'string' && (pattern === '**' || pattern.endsWith('/**'))))
+      });
     }
     const extra = this.config('excludeDirectories', []);
     const excluded = Array.isArray(extra) ? extra : [];
     return relative.split('/').some(part => SKIP_DIRECTORIES.has(part) || excluded.includes(part)) ||
-      /\.(vsix|lock)$/i.test(relative) || this.globCache.get(signature)(relative);
+      (!directory && /\.(vsix|lock)$/i.test(relative)) ||
+      this.globCache.get(signature)[directory ? 'directory' : 'file'](relative);
   }
 
   isDirty(uri) {
@@ -479,32 +497,35 @@ class LiveFollow {
   }
 
   forget(uri) {
+    if (this.disposed || this.isIgnored(uri, true)) return;
     const key = uri.toString();
-    clearTimeout(this.pendingReads.get(key));
-    this.pendingReads.delete(key);
-    // Keep a tombstone during bootstrap so a delayed initial read cannot resurrect a deletion.
-    if (this.initializing) this.revisions.set(key, ++this.readSerial);
-    else this.revisions.delete(key);
-    if (this.snapshots.has(key)) this.trackedBytes -= Buffer.byteLength(this.snapshots.get(key));
-    this.snapshots.delete(key);
-    this.savedByEditor.delete(key);
-    this.queue = this.queue.filter(job => job.uri.toString() !== key);
-    if (this.currentJob?.uri.toString() === key) this.cancelCurrent();
+    const prefix = key.replace(/\/$/, '') + '/';
+    const removed = candidate => candidate === key || candidate.startsWith(prefix);
+    const keys = new Set([key, ...this.pendingReads.keys(), ...this.revisions.keys(),
+      ...this.reading.keys(), ...this.scanning.keys(), ...this.snapshots.keys(), ...this.savedByEditor.keys()]);
+    for (const candidate of keys) {
+      if (!removed(candidate)) continue;
+      this.debounce.delete(candidate);
+      // Invalidate reads already in flight, including the initial scan.
+      if (this.scanning.has(candidate) || this.reading.has(candidate)) this.revisions.set(candidate, ++this.readSerial);
+      else this.revisions.delete(candidate);
+      if (this.snapshots.has(candidate)) this.trackedBytes -= Buffer.byteLength(this.snapshots.get(candidate));
+      this.snapshots.delete(candidate);
+      this.savedByEditor.delete(candidate);
+    }
+    this.queue = this.queue.filter(job => !removed(job.uri.toString()));
+    if (this.currentJob && removed(this.currentJob.uri.toString())) this.cancelCurrent();
     this.updateStatus();
   }
 
   scheduleRead(uri) {
-    if (this.disposed) return;
+    if (this.disposed || this.watchSuspended) return;
     if (this.inspections.schedule(uri, this.generation) || this.isIgnored(uri)) return;
     const key = uri.toString();
     const revision = ++this.readSerial;
     this.revisions.set(key, revision);
-    clearTimeout(this.pendingReads.get(key));
     const generation = this.generation;
-    this.pendingReads.set(key, setTimeout(() => {
-      this.pendingReads.delete(key);
-      void this.handleWrite(uri, revision, generation).catch(error => this.log(`Read failed: ${String(error)}`));
-    }, 90));
+    this.debounce.schedule(key, { uri, revision, generation });
   }
 
   async handleWrite(uri, revision, generation) {
@@ -544,7 +565,7 @@ class LiveFollow {
   }
 
   releaseRevision(key) {
-    if (!this.initializing && !this.pendingReads.has(key) && !this.reading.has(key)) this.revisions.delete(key);
+    if (!this.pendingReads.has(key) && !this.reading.has(key) && !this.scanning.has(key)) this.revisions.delete(key);
   }
 
   async handleInspection(event, current = () => true) {
@@ -922,8 +943,7 @@ class LiveFollow {
     this.clearHighlight();
     for (const watcher of this.watchers) watcher.dispose();
     this.watchers = [];
-    for (const timer of this.pendingReads.values()) clearTimeout(timer);
-    this.pendingReads.clear();
+    this.debounce.clear();
     this.readPool.dispose();
     this.queue.length = 0;
     this.snapshots.clear();
@@ -932,6 +952,7 @@ class LiveFollow {
     this.trackedBytes = 0;
     this.revisions.clear();
     this.reading.clear();
+    this.scanning.clear();
     this.savedByEditor.clear();
     for (const disposable of this.disposables) disposable.dispose();
     this.disposables = [];

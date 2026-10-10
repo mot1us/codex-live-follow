@@ -20,6 +20,128 @@ async function settleRead(controller) {
   await tick();
 }
 
+test('burst backpressure bounds revisions before source reads start', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  await controller.start();
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+  for (let i = 0; i < 10000; i++) mock.write(mock.uri(`burst-${i}.js`), 'latest', true);
+  assert.equal(controller.pendingReads.size, 256);
+  assert.equal(controller.revisions.size, 256);
+  assert.equal(controller.skipped, 9744);
+  t.mock.timers.tick(90);
+  for (let i = 0; i < 100 && controller.reading.size; i++) await tick();
+  assert.equal(controller.reading.size, 0);
+  assert.equal(controller.revisions.size, 0);
+  assert.equal(controller.snapshots.size, 256);
+  assert.equal(controller.snapshots.get(mock.uri('burst-9999.js').toString()), 'latest');
+});
+
+test('paused file watching stops I/O and resume baselines paused changes without replay', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false, suspendWhenPaused: true } });
+  const source = mock.uri('paused.js');
+  mock.put(source, 'before pause');
+  let reads = 0;
+  mock.hooks.readFile = async uri => { reads++; return Buffer.from(mock.files.get(uri.toString()).content); };
+  await controller.start();
+  assert.equal(reads, 0);
+  assert.equal(controller.watchers.length, 0);
+  mock.write(source, 'saved while paused');
+  controller.scheduleRead(source);
+  mock.events.saveDocument.fire({ uri: source, getText: () => assert.fail('paused saves must not read text') });
+  assert.equal(controller.pendingReads.size, 0);
+  await mock.commands.get('codexLiveFollow.resume')();
+  assert.equal(controller.snapshots.get(source.toString()), 'saved while paused');
+  assert.equal(controller.queue.length, 0);
+  assert.equal(controller.history.entries.length, 0);
+  mock.events.windowState.fire({ focused: false });
+  mock.write(source, 'next real edit');
+  await settleRead(controller);
+  assert.equal(controller.queue[0].before, 'saved while paused');
+  await mock.commands.get('codexLiveFollow.pause')();
+  assert.equal(controller.watchers.length, 0);
+  assert.equal(controller.snapshots.size, 0);
+  assert.equal(controller.history.entries.length, 1, 'explicit recent history survives pause');
+  const stoppedReads = reads;
+  mock.write(source, 'another paused edit');
+  assert.equal(controller.pendingReads.size, 0);
+  assert.equal(reads, stoppedReads);
+});
+
+test('oversized user saves cancel obsolete replay without reading or hashing the model', async t => {
+  const { mock, controller } = fixture(t, { config: { maxFileSizeKB: 16 } });
+  const uri = mock.uri('oversized.txt');
+  mock.put(uri, 'old');
+  await controller.start();
+  mock.events.windowState.fire({ focused: false });
+  mock.write(uri, 'pending edit');
+  await settleRead(controller);
+  assert.equal(controller.queue.length, 1);
+  mock.events.saveDocument.fire({ uri, lineCount: 1, offsetAt: () => 32 * 1024 * 1024,
+    getText: () => assert.fail('oversized save cannot assemble full text') });
+  assert.equal(controller.queue.length, 0);
+  assert.equal(controller.savedByEditor.size, 0);
+});
+
+test('excluded folders and files cannot consume the startup source-file allowance', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false,
+    excludeDirectories: ['generated'], excludeGlobs: ['**/*.map', 'ignored/**'] } });
+  for (let i = 0; i < 1200; i++) {
+    mock.put(mock.uri(`generated/file-${i}.js`), 'excluded directory');
+    mock.put(mock.uri(`ignored/file-${i}.js`), 'excluded glob directory');
+    mock.put(mock.uri(`file-${i}.map`), 'excluded file');
+  }
+  const source = mock.uri('src/main.js');
+  mock.put(source, 'existing source');
+  const visited = [];
+  const readDirectory = mock.vscode.workspace.fs.readDirectory;
+  mock.vscode.workspace.fs.readDirectory = async uri => { visited.push(uri.path); return readDirectory(uri); };
+  await controller.start();
+  assert.equal(controller.snapshots.get(source.toString()), 'existing source');
+  assert.equal(controller.snapshots.size, 1);
+  assert.ok(!visited.includes('/workspace/generated'));
+  assert.ok(!visited.includes('/workspace/ignored'));
+});
+
+test('a parent-folder deletion drops child snapshots, debounce entries, and queued jobs', async t => {
+  const { mock, controller } = fixture(t);
+  const first = mock.uri('nested/first.js');
+  const second = mock.uri('nested/second.js');
+  const sibling = mock.uri('nested-other/keep.js');
+  for (const uri of [first, second, sibling]) mock.put(uri, 'before');
+  await controller.start();
+  mock.events.windowState.fire({ focused: false });
+  mock.write(first, 'queued edit');
+  await settleRead(controller);
+  mock.write(second, 'debounced edit');
+  mock.files.delete(first.toString());
+  mock.files.delete(second.toString());
+  mock.remove(mock.uri('nested'));
+  assert.equal(controller.pendingReads.size, 0);
+  assert.equal(controller.queue.length, 0);
+  assert.equal(controller.snapshots.size, 1);
+  assert.equal(controller.trackedBytes, Buffer.byteLength('before'));
+  assert.equal(controller.snapshots.get(sibling.toString()), 'before');
+  assert.equal(controller.revisions.size, 0);
+});
+
+test('a parent-folder deletion invalidates a child bootstrap read already in flight', async t => {
+  const { mock, controller } = fixture(t, { config: { enabled: false } });
+  const source = mock.uri('removed/child.js');
+  mock.put(source, 'stale source');
+  const gate = deferred();
+  let reading = false;
+  mock.hooks.readFile = () => { reading = true; return gate.promise; };
+  const starting = controller.start();
+  await until(() => reading);
+  mock.files.delete(source.toString());
+  mock.remove(mock.uri('removed'));
+  gate.resolve(Buffer.from('stale source'));
+  await starting;
+  assert.equal(controller.snapshots.size, 0);
+  assert.equal(controller.revisions.size, 0);
+  assert.equal(controller.scanning.size, 0);
+});
+
 test('configuration changes pause and resume the controller', async t => {
   const { mock, controller } = fixture(t);
   await controller.start();
@@ -32,7 +154,7 @@ test('configuration changes pause and resume the controller', async t => {
 test('disposal during bootstrap cannot install a live watcher afterward', async t => {
   const { mock, controller } = fixture(t);
   const files = deferred();
-  mock.hooks.findFiles = () => files.promise;
+  mock.hooks.readDirectory = () => files.promise;
   const starting = controller.start();
   controller.dispose();
   files.resolve([]);
@@ -46,7 +168,7 @@ test('overlapping workspace resets leave exactly one watcher set', async t => {
   const firstFiles = deferred();
   const secondFiles = deferred();
   let searches = 0;
-  mock.hooks.findFiles = () => ++searches === 1 ? firstFiles.promise : secondFiles.promise;
+  mock.hooks.readDirectory = () => ++searches === 1 ? firstFiles.promise : secondFiles.promise;
   const first = controller.resetWorkspace();
   const second = controller.resetWorkspace();
   secondFiles.resolve([]);
@@ -59,7 +181,7 @@ test('overlapping workspace resets leave exactly one watcher set', async t => {
 test('removing the last workspace during bootstrap leaves no watcher or snapshot', async t => {
   const { mock, controller } = fixture(t);
   const files = deferred();
-  mock.hooks.findFiles = () => files.promise;
+  mock.hooks.readDirectory = () => files.promise;
   const first = controller.resetWorkspace();
   mock.vscode.workspace.workspaceFolders = undefined;
   await controller.resetWorkspace();
@@ -716,7 +838,7 @@ test('a rescan drops waiting reads while in-flight reads still share its limit',
   await until(() => controller.pendingReads.size === 0);
   const source = mock.uri('new-scan.js');
   mock.put(source, 'latest');
-  mock.hooks.findFiles = () => [source];
+  mock.hooks.readDirectory = () => [['new-scan.js', mock.vscode.FileType.File]];
   const resetting = controller.resetWorkspace();
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(started.length, 8, 'reset must not start another eight reads');
@@ -778,12 +900,15 @@ test('a stalled watcher backlog remains bounded and reports dropped saves', asyn
   for (let i = 0; i < 270; i++) mock.write(mock.uri(`backlog-${i}.js`), 'latest', true);
   await until(() => controller.pendingReads.size === 0 && controller.skipped > 0);
   assert.equal(started, 8);
-  assert.equal(controller.readPool.pending.size, 256);
-  assert.equal(controller.skipped, 6);
+  assert.equal(controller.readPool.pending.size, 248);
+  assert.equal(controller.skipped, 14, 'the debounce stage drops saves before allocating read requests');
+  for (let i = 270; i < 280; i++) mock.write(mock.uri(`backlog-${i}.js`), 'latest', true);
+  await until(() => controller.pendingReads.size === 0 && controller.skipped === 16);
+  assert.equal(controller.readPool.pending.size, 256, 'later batches still obey the separate read-pool bound');
   gate.resolve();
   await settleRead(controller);
   assert.equal(controller.readPool.pending.size, 0);
-  assert.equal(controller.snapshots.get(mock.uri('backlog-269.js').toString()), 'latest');
+  assert.equal(controller.snapshots.get(mock.uri('backlog-279.js').toString()), 'latest');
 });
 
 for (const [empty, speed] of [[false, 400], [true, 20]]) test(`Test Specter runs while paused at ${speed} chars/s${empty ? ' without a project' : ''} and leaves files and settings alone`, async t => {

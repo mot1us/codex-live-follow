@@ -66,6 +66,8 @@ function createVscodeMock(options = {}) {
   const workspaceValues = new Map(Object.entries(options.workspaceState || {}));
   const config = {
     enabled: true, mode: 'typing', typingCharsPerSecond: 400,
+    // Most controller fixtures exercise the optional baseline-maintaining pause.
+    suspendWhenPaused: false,
     maxReplayDurationMs: 1000, minimumDisplayMs: 100,
     highlightDurationMs: 250, ...options.config
   };
@@ -88,6 +90,12 @@ function createVscodeMock(options = {}) {
       uri, text, version: 1, isDirty: false, isClosed: false,
       languageId: uri.path.endsWith('.js') ? 'javascript' : 'plaintext',
       getText() { return this.text; },
+      offsetAt(position) {
+        const lines = this.text.split('\n');
+        const line = Math.min(position.line, lines.length - 1);
+        return lines.slice(0, line).reduce((offset, text) => offset + text.length + 1, 0) +
+          Math.min(position.character, lines[line].replace(/\r$/, '').length);
+      },
       get lineCount() { return this.text.split(/\r?\n/).length; },
       lineAt(index) { return { text: this.text.split(/\r?\n/)[index] || '' }; }
     };
@@ -99,7 +107,7 @@ function createVscodeMock(options = {}) {
     EventEmitter: Emitter, Uri,
     StatusBarAlignment: { Right: 2 }, OverviewRulerLane: { Full: 7 },
     ViewColumn: { Active: -1, Beside: -2, One: 1 },
-    FileType: { File: 1, Directory: 2 },
+    FileType: { File: 1, Directory: 2, SymbolicLink: 64 },
     TextEditorRevealType: { InCenter: 2, InCenterIfOutsideViewport: 3 },
     TextEditorSelectionChangeKind: { Keyboard: 1, Mouse: 2, Command: 3 },
     ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
@@ -255,6 +263,17 @@ function createVscodeMock(options = {}) {
         return documentFor(uri, file.content);
       },
       fs: {
+        async readDirectory(uri) {
+          if (hooks.readDirectory) return hooks.readDirectory(uri);
+          const prefix = uri.path.replace(/\/$/, '') + '/';
+          const entries = new Map();
+          for (const file of files.values()) {
+            if (!file.uri.path.startsWith(prefix)) continue;
+            const parts = file.uri.path.slice(prefix.length).split('/');
+            entries.set(parts[0], parts.length > 1 ? 2 : 1);
+          }
+          return [...entries];
+        },
         async stat(uri) {
           if (hooks.stat) return hooks.stat(uri);
           const file = files.get(uri.toString());
