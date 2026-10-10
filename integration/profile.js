@@ -38,7 +38,7 @@ async function runProfile(vscode, api, extension, directory) {
   const config = vscode.workspace.getConfiguration('codexLiveFollow');
   for (const [key, value] of Object.entries({ suspendWhenPaused: true,
     pauseOnInteraction: false, pauseWhenUnfocused: false, mode: 'typing',
-    typingCharsPerSecond: 120, maxReplayDurationMs: 3000, minimumDisplayMs: 100 })) {
+    typingCharsPerSecond: 120, maxReplayDurationMs: 3000, minimumDisplayMs: 100, maxFileSizeKB: 512 })) {
     await config.update(key, value, vscode.ConfigurationTarget.Workspace);
   }
   await vscode.commands.executeCommand('codexLiveFollow.pause');
@@ -46,7 +46,9 @@ async function runProfile(vscode, api, extension, directory) {
   const small = path.join(root, 'specter-profile-small.txt');
   const large = path.join(root, 'specter-profile-large.txt');
   const beforeSmall = 'small source baseline\n'.repeat(200);
-  const beforeLarge = 'unchanged source line\n'.repeat(24000);
+  const beforeLarge = 'unchanged source line\n'.repeat(22000);
+  assert.ok(Buffer.byteLength(beforeLarge) + 512 <= config.get('maxFileSizeKB') * 1024,
+    'large profile fixture and its edit must fit the configured file-size limit');
   await fs.writeFile(small, beforeSmall);
   await fs.writeFile(large, beforeLarge);
   await vscode.commands.executeCommand('codexLiveFollow.resume');
